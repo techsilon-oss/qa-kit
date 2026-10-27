@@ -24,8 +24,8 @@ Each link is checked by a script. No link depends on a person or an agent rememb
 - Test cases: one case file per feature, next to its record.
 - Traceability checks: code ↔ record ↔ case ↔ automated test.
 - A coverage view: how each case is tested.
-- Commit-time coupling: a change to code or to a case must come with the matching record or test, or a written reason.
-- Adoption on an existing repo: draft records from discovery, verified one by one, and a baseline of existing unmapped code that only shrinks.
+- Commit-time coupling: a change to code or to a case must come with the matching record or test, or a written reason. A case ID is never deleted.
+- Adoption on an existing repo: draft records from discovery, verified one by one, and a baseline of existing unmapped code and unlinked spec files that only shrinks.
 - Automation module: link checks for Playwright tests, and a Playwright starter (tier tags, sign-in and cleanup interfaces).
 - A manifest (`qa-kit.json`) and a doctor that reports what is installed.
 - Skills for Claude Code that wrap the scripts.
@@ -69,7 +69,7 @@ Use one word for one meaning.
 | **Case ID** | The stable ID of a case, for example `SIGN-01`. Never reused |
 | **Case prefix** | The letters before the dash; one prefix per feature |
 | **Priority** | `P0` critical · `P1` core · `P2` polish |
-| **Case type** | `manual` (a person runs it) · `api` (a call or a script, run by hand or by a tool) · `automated` (a test in the repo runs it) |
+| **Case type** | `manual` (a person runs it through the UI) · `api` (a person runs a call or a script by hand) · `automated` (a test in the repo runs it, at any layer). An API test that a tool runs is `automated`, with `automated_by` naming the test file |
 | **Layer** | Where an automated case runs: unit, API/database, browser (§8.1) |
 | **Tier** | When an automated test runs: smoke, nightly, extended (§8.3) |
 | **Linked test** | An automated test whose title starts with the case ID it proves |
@@ -126,7 +126,7 @@ A Markdown file. The file name, without `.md`, is the feature ID. Feature IDs us
 8. Where it lives
 9. Decisions and history
 
-The list is a setting (`records.requiredSections`). The check verifies that each required section exists as a level-2 heading, in order. It does not judge the content.
+The list is a setting (`records.requiredSections`). The check verifies that each required section exists as a level-2 heading, in order. It does not judge the content. Headings are compared after trimming, with straight (`'`) and curly (`’`) apostrophes treated as equal.
 
 **Writing rules** (in the installed `docs/features/README.md`): short sentences; one instruction per step, imperative; active voice; one word for one meaning; a condition comes before its instruction. A repo may add its own style rules.
 
@@ -159,7 +159,7 @@ cases:
 - Case IDs are unique across the whole repo.
 - Every step has an `action` and an `expected`, both plain strings. A value that YAML reads as a number or a map is an error, with the message "quote it in the YAML".
 - `automated_by` is free text. It may name several things separated by `;`. A path that matches the automation module's spec pattern (§8.2) is a **browser link** and is checked.
-- A retired case is not deleted while anything references it. Set `status: retired` on the case (optional key) and remove its links first.
+- A case is never deleted. To retire it, set `status: retired` on the case (optional key) and remove its links. K4 (§7) blocks a commit that removes a case ID. With C3, a retired ID can never come back.
 
 ### 5.4 Manifest — `qa-kit.json`
 
@@ -257,17 +257,26 @@ Globs: `*` matches within one folder; `**` matches across folders.
 | ID | Fails when |
 |---|---|
 | M1 | A mapping names a record or a case file that does not exist |
-| M2 | A record maps from no code |
-| M3 | A path that matches `mustMap` maps to no record (unless it is in `mustMapExceptions` or the baseline) |
-| M4 | A path in the baseline now maps to a record, or no longer exists. Remove it from the baseline |
+| M2 | An active record maps from no code. Draft and retired records are skipped |
+| M3 | A tracked file (`git ls-files`) that matches `mustMap` maps to no record (unless it is in `mustMapExceptions` or in the baseline's `unmapped` list) |
+| M4 | A baseline entry is stale: a path in `unmapped` now maps to a record or no longer exists, or a file in `unlinkedSpecs` now has only linked tests or no longer exists. Remove it from the baseline |
 
 If the map file does not exist, `/qa-init` creates it with an example mapping that gates nothing until edited, and the doctor says so.
 
-**The baseline (existing code).** On an existing repo, M3 would fail on the first day, and a check that always fails gets turned off. So `/qa-init` writes every existing unmapped path that matches `mustMap` to the baseline file (default `qa-baseline.json`, a sorted list of paths). Then:
+**The baseline (existing code and existing tests).** On an existing repo, M3 and L1 would fail on the first day, and a check that always fails gets turned off. So `/qa-init` writes the baseline file (default `qa-baseline.json`) with two sorted lists:
 
-- **New** code must be mapped from its first commit (M3).
-- A path leaves the baseline when its feature gets a record (M4 says when).
-- **The baseline only shrinks.** K3 (§7) blocks a commit that adds a path to it.
+```json
+{ "unmapped": ["src/legacy/report.ts"], "unlinkedSpecs": ["e2e/old-checkout.spec.ts"] }
+```
+
+- `unmapped`: every existing tracked path that matches `mustMap` and maps to no record (for M3).
+- `unlinkedSpecs`: every existing spec file that has a test whose title names no case (for L1, §8.2).
+
+Then:
+
+- **New** code must be mapped from its first commit (M3). **New** spec files must be linked from their first commit (L1).
+- A path leaves `unmapped` when its feature gets a record. A spec file leaves `unlinkedSpecs` when all its tests name cases. M4 says when.
+- **The baseline only shrinks.** K3 (§7) blocks a commit that adds a path to either list.
 
 `mustMapExceptions` is different: it lists paths that are never a feature (a 404 page, a generated file), with no plan to map them.
 
@@ -275,11 +284,11 @@ If the map file does not exist, `/qa-init` creates it with an example mapping th
 
 Prints a Markdown table, one row per feature, then a total row:
 
-| Feature | Cases | Manual | API | Automated: unit | Automated: browser | P0 cases not automated |
+| Feature | Cases | Manual | API | Automated: unit/API | Automated: browser | P0 cases not automated |
 
 - **Automated: browser** = `type: automated` with at least one browser link.
-- **Automated: unit** = `type: automated` with no browser link.
-- **P0 cases not automated** lists the IDs of `P0` cases with `type: manual`.
+- **Automated: unit/API** = `type: automated` with no browser link.
+- **P0 cases not automated** lists the IDs of `P0` cases with `type: manual` or `type: api`.
 - A feature whose record is a draft is marked `(draft)`. Below the table: the number of drafts and the size of the baseline.
 
 This command never fails. It is a view.
@@ -294,15 +303,17 @@ Run from the repo's `commit-msg` hook (any hook system: `core.hooksPath`, Husky 
 
 | ID | Blocks the commit when | Way through |
 |---|---|---|
-| K1 | Staged code matches a mapping, and a record or case file in that mapping is not staged | Stage the record, or add `Docs-Reviewed: <path> — <reason>` |
+| K1 | Staged code matches a mapping, and a record (`.md`) in that mapping is not staged. A case file in the mapping that is not staged gets a reminder, not a block | Stage the record, or add `Docs-Reviewed: <record path> — <reason>`, one trailer per record |
 | K2 | A staged case file changes the `title`, `preconditions` or `steps` of a case that has a browser link, and the linked spec is not staged | Stage the spec, or add `Test-Reviewed: <case ID> — <reason>` |
-| K3 | The staged baseline file contains a path that the baseline at `HEAD` does not | Remove the path, and map it to a record instead. A first baseline (nothing at `HEAD`) passes |
+| K3 | The staged baseline file contains a path, in either list, that the baseline at `HEAD` does not | Remove the path. Map it to a record, or link its tests to cases, instead. A first baseline (nothing at `HEAD`) passes |
+| K4 | A case ID in a case file at `HEAD` is in no staged case file | Restore the case and set `status: retired` on it instead. A case may move to another case file |
 
 **Rules:**
 
 - A reason must have 10 or more characters after the dash. "ok" does not count.
 - Trailer names are settings (`settings.trailers`).
 - K2 compares the case at `HEAD` with the staged copy (`git show HEAD:<path>` and `git show :<path>`). A new case file has nothing at `HEAD` and passes.
+- K4 compares all case IDs in case files at `HEAD` with all case IDs in the staged case files. Deleting or renaming a case file counts.
 - A change that removes a browser link still counts as a change to a linked case.
 - Test files (`*.test.*`, `*.spec.*`) are not "code" for K1.
 
@@ -332,14 +343,14 @@ The checker scans files that match `specGlob`. It finds tests by their declarati
 
 | ID | Fails when |
 |---|---|
-| L1 | A test in a linked file names no case ID at the start of its title |
+| L1 | A test in a linked file names no case ID at the start of its title. A **linked file** is every file that matches `specGlob`, is not under `unlinkedDirs`, and is not in the baseline's `unlinkedSpecs` list (§6.3) |
 | L2 | A test names a case ID that does not exist |
 | L3 | A test proves a case whose `type` is not `automated` |
 | L4 | A test proves a case whose `automated_by` does not name the test's file |
 | L5 | A case names a spec file that does not exist |
 | L6 | A case names a spec file, and no test there starts with its ID |
 
-Files under `unlinkedDirs` (for example visual snapshots, which assert no behaviour) are not linked and not checked.
+Files under `unlinkedDirs` (for example visual snapshots, which assert no behaviour) are not linked and not checked. Files in the baseline's `unlinkedSpecs` list are existing tests from before adoption; L1 does not check them, and the list only shrinks (K3). Every new spec file is linked from its first commit.
 
 **The limit, stated in the README:** these checks give zero *link* drift. They cannot prove that a passing test checks the right thing. K2 and code review cover that.
 
@@ -385,7 +396,7 @@ Every skill is a thin wrapper over the scripts. The work must also run in a plai
 | `/qa-init` | Installs the kit into the current repo. Non-destructive: creates missing files, merges `package.json` scripts, never overwrites. Idempotent. Asks which modules to enable; a skipped module needs a reason. Prints a created / merged / skipped summary. Never commits, installs packages or deploys |
 | `/qa-discover` | Maps an existing repo's features. Reads the code (routes, pages, API handlers, jobs, database objects), proposes a feature list, and **waits for approval**. Then drafts, for each approved feature: a record (`status: draft`), a case file with case outlines, and its code-map entries. Never sets `last_verified`. Never marks a case `automated`. Ends with a list of drafts, in a suggested order for verification (highest risk first) |
 | `/qa-doctor` | Runs `qa-doctor.mjs` and explains each finding |
-| `/qa-record <feature>` | Writes, updates or **verifies** a feature record and its case file against the code. Reads the code first; marks anything it cannot trace to code as **Assumed**, with who can confirm it. Sets `status: active` and `last_verified` only after checking every claim. Removes the feature's paths from the baseline |
+| `/qa-record <feature>` | Writes, updates or **verifies** a feature record and its case file against the code. Reads the code first; marks anything it cannot trace to code as **Assumed**, with who can confirm it. Sets `status: active` and `last_verified` only after checking every claim. Removes the feature's paths from the baseline's `unmapped` list |
 | `/qa-plan <issue or feature>` | Before code: lists the behaviours, writes or updates the cases, chooses the layer for each (§8.1), and proposes the tests |
 
 `/qa-review` (periodic coverage, flaky and slow-test review) ships with the reporting module in v0.2.
@@ -394,10 +405,10 @@ Every skill is a thin wrapper over the scripts. The work must also run in a plai
 
 | Step | Command | Result | Kind of work |
 |---|---|---|---|
-| 1 | `/qa-init` | Structure, manifest, scripts, hooks, CI step, and the baseline of existing unmapped code | Predictable; safe to run again; minutes |
+| 1 | `/qa-init` | Structure, manifest, scripts, hooks, CI step, and the baseline of existing unmapped code and unlinked spec files | Predictable; safe to run again; minutes |
 | 2 | `/qa-discover` | An approved feature list; draft records, case outlines and code-map entries | Judgment; reviewed by a person |
 | 3 | `/qa-record <feature>`, one feature at a time | The record checked against the code and made active; the baseline shrinks | Judgment; repeated over days or weeks |
-| 4 | Day to day | `/qa-plan` before work; commit hook K1–K3; `qa:check` in CI; coverage view | Automatic |
+| 4 | Day to day | `/qa-plan` before work; commit hook K1–K4; `qa:check` in CI; coverage view | Automatic |
 
 A new repo skips step 2: it writes records as features are built.
 
@@ -435,7 +446,7 @@ With no change to govkit, a repo adds one guardrail entry to `govkit.json`:
 
 ### 10.3 With govkit's `/sdlc`
 
-**The guardrails do not depend on `/sdlc`.** They are the commit hook (K1–K3) and the CI step (`qa:check`), which run whether or not anyone uses a skill. `/sdlc` integration is a convenience.
+**The guardrails do not depend on `/sdlc`.** They are the commit hook (K1–K4) and the CI step (`qa:check`), which run whether or not anyone uses a skill. `/sdlc` integration is a convenience.
 
 **QA Kit never ships its own `/sdlc`.** Two skills with one name give advice that is almost right, which is worse than advice that is plainly wrong.
 
@@ -455,7 +466,7 @@ A repo **conforms** to QA Kit v0.1 when:
 
 1. Its records and case files meet §5 (key names and paths may differ, through settings).
 2. Checks equivalent to R1–R5, C1–C7, M1–M3, L1–L6 run in CI or in the release gate, and fail the run.
-3. K1, K2 and K3 run at commit time.
+3. K1, K2, K3 and K4 run at commit time.
 4. A coverage view exists.
 5. `qa-kit.json` declares the state, and the doctor reports no MISSING.
 
@@ -491,7 +502,7 @@ Each issue states: what it would check, why, the trigger, and "ships nothing yet
 
 - Runners (`qa-check.mjs`, `qa-doctor.mjs`) use Node built-ins plus **one** dependency: the `yaml` npm package, installed per repo as a dev dependency (the same pattern as `tsx` for govkit's release gate). Verify the current version of `yaml` before you pin it.
 - Node 20 or later.
-- Tests use `node:test`, with fixture repos under `test/fixtures/`. Every check ID (R1…L6, K1–K3) has a passing and a failing fixture.
+- Tests use `node:test`, with fixture repos under `test/fixtures/`. Every check ID (R1…L6, K1–K4) has a passing and a failing fixture.
 - Vendored files are copied verbatim into a repo, and the manifest records `vendoredVersion`. Fix bugs in `qa-kit`, never in a copy.
 - Messages are plain language: what, where, what to do.
 - Semantic versioning. A change to a file format, a check ID or a manifest key is a minor version before 1.0, and is listed in `CHANGELOG.md`.
@@ -501,6 +512,6 @@ Each issue states: what it would check, why, the trigger, and "ships nothing yet
 
 | Version | Adds |
 |---|---|
-| 0.1.0 | Core (records with draft and active states, cases, map, baseline, coverage, coupling K1–K3) + automation (link checks, Playwright starter) + doctor + `/qa-init`, `/qa-discover`, `/qa-doctor`, `/qa-record`, `/qa-plan` + the `sdlc` block + companion shell. In govkit, separately: the `/sdlc` extension point |
+| 0.1.0 | Core (records with draft and active states, cases, map, baseline, coverage, coupling K1–K4) + automation (link checks, Playwright starter) + doctor + `/qa-init`, `/qa-discover`, `/qa-doctor`, `/qa-record`, `/qa-plan` + the `sdlc` block + companion shell. In govkit, separately: the `/sdlc` extension point |
 | 0.2.0 | Reporting: CI workflow template that saves the HTML report and publishes a JUnit summary; optional Qase adapter (results by case ID); `/qa-review` |
 | Later | Unit-layer links (Vitest titles with case IDs, same contract); quarantine with expiry dates (`test.fixme` must name an issue and a date; the check fails after the date); smoke time budget; feature tags for targeted runs |
