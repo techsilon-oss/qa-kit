@@ -158,7 +158,7 @@ cases:
 - `caseIdPattern` default: `^[A-Z]{2,5}-\d{2,3}$` (a setting).
 - Case IDs are unique across the whole repo.
 - Every step has an `action` and an `expected`, both plain strings. A value that YAML reads as a number or a map is an error, with the message "quote it in the YAML".
-- `automated_by` is free text. It may name several things separated by `;`. A path that matches the automation module's spec pattern (§8.2) is a **browser link** and is checked.
+- `automated_by` is free text. It may name several things separated by `;`. For an `automated` case it names the test that runs the case. For an `api` case it says how to run the check by hand: the script, the request file, or a short description. A path that matches the automation module's spec pattern (§8.2) is a **browser link** and is checked.
 - A case is never deleted. To retire it, set `status: retired` on the case (optional key) and remove its links. K4 (§7) blocks a commit that removes a case ID. With C3, a retired ID can never come back.
 
 ### 5.4 Manifest — `qa-kit.json`
@@ -191,6 +191,7 @@ cases:
     "codeMap": "scripts/source-doc-map.json",
     "mustMap": [],
     "mustMapExceptions": [],
+    "testFilePatterns": ["*.test.*", "*.spec.*"],
     "baseline": "qa-baseline.json",
     "trailers": { "recordReviewed": "Docs-Reviewed", "testReviewed": "Test-Reviewed" }
   },
@@ -245,6 +246,7 @@ A record whose frontmatter does not parse as YAML fails R1.
 | C5 | `type` is `api` or `automated` and `automated_by` is empty |
 | C6 | A step has no `action` or no `expected`, or a value is not a plain string |
 | C7 | A case file has no cases |
+| C8 | A case file has no matching record (no `<feature-id>.md` next to it) |
 
 A case file that does not parse as YAML fails C7: no case can be read from it. C5 skips a case with `status: retired`, because retiring a case removes its links (§5.3).
 
@@ -258,13 +260,15 @@ QA Kit reads the code→doc map in govkit's format:
 
 Globs: `*` matches any run of characters except `/`; `**` matches any run of characters, `/` included. Every other character, `?` included, matches itself. `mustMap` and `mustMapExceptions` entries are globs too, so a plain path is a glob that matches only itself.
 
+**Test files** are not code. A file is a test file when its file name (not its path) matches a glob in `testFilePatterns` (default `*.test.*` and `*.spec.*`). M3 and K1 (§7) use this one setting.
+
 The map may also name docs that are not feature records (it is shared with govkit). QA Kit reads only the entries inside `featuresDir`.
 
 | ID | Fails when |
 |---|---|
 | M1 | A mapping names a record or a case file that does not exist |
 | M2 | An active record maps from no code: no mapping that names the record has a `source` glob that matches a tracked file. Draft and retired records are skipped |
-| M3 | A tracked file (`git ls-files`) that matches `mustMap` maps to no record of any status (unless it is in `mustMapExceptions` or in the baseline's `unmapped` list) |
+| M3 | A tracked file (`git ls-files`) that matches `mustMap` maps to no record of any status (unless it is a test file, is in `mustMapExceptions`, or is in the baseline's `unmapped` list) |
 | M4 | A baseline entry is stale: a path in `unmapped` now maps to a record or no longer exists, or a file in `unlinkedSpecs` now has only linked tests or no longer exists. Remove it from the baseline |
 
 If the map file does not exist, `/qa-init` creates it with an example mapping that gates nothing until edited, and the doctor says so. If it is still missing, or is not valid JSON with a `mappings` list, `qa-check map` fails with M1.
@@ -275,13 +279,14 @@ If the map file does not exist, `/qa-init` creates it with an example mapping th
 { "unmapped": ["src/legacy/report.ts"], "unlinkedSpecs": ["e2e/old-checkout.spec.ts"] }
 ```
 
-- `unmapped`: every existing tracked path that matches `mustMap` and maps to no record (for M3).
+- `unmapped`: every existing tracked path that matches `mustMap` and maps to no record at all (for M3).
 - `unlinkedSpecs`: every existing spec file that has a test whose title names no case (for L1, §8.2).
 
 Then:
 
 - **New** code must be mapped from its first commit (M3). **New** spec files must be linked from their first commit (L1).
-- A path leaves `unmapped` when its feature gets a record. A spec file leaves `unlinkedSpecs` when all its tests name cases. M4 says when.
+- A path leaves `unmapped` as soon as it maps to a record of any status, a draft included. So `/qa-discover` empties most of `unmapped` when it writes draft records and their code-map entries. A spec file leaves `unlinkedSpecs` when all its tests name cases. M4 says when.
+- Verification is tracked by the **draft count**, not by the baseline. `/qa-record` turns a draft into an active record, and the draft count falls.
 - **The baseline only shrinks.** K3 (§7) blocks a commit that adds a path to either list.
 
 `mustMapExceptions` is different: it lists paths that are never a feature (a 404 page, a generated file), with no plan to map them.
@@ -322,7 +327,7 @@ Run from the repo's `commit-msg` hook (any hook system: `core.hooksPath`, Husky 
 - K2 compares the case at `HEAD` with the staged copy (`git show HEAD:<path>` and `git show :<path>`). A new case file has nothing at `HEAD` and passes.
 - K4 compares all case IDs in case files at `HEAD` with all case IDs in the staged case files. Deleting or renaming a case file counts.
 - A change that removes a browser link still counts as a change to a linked case.
-- Test files (`*.test.*`, `*.spec.*`) are not "code" for K1.
+- Test files (`testFilePatterns`, §6.3) are not "code" for K1.
 
 ## 8. Automation module
 
@@ -401,9 +406,9 @@ Every skill is a thin wrapper over the scripts. The work must also run in a plai
 | Skill | Does |
 |---|---|
 | `/qa-init` | Installs the kit into the current repo. Non-destructive: creates missing files, merges `package.json` scripts, never overwrites. Idempotent. Asks which modules to enable; a skipped module needs a reason. Prints a created / merged / skipped summary. Never commits, installs packages or deploys |
-| `/qa-discover` | Maps an existing repo's features. Reads the code (routes, pages, API handlers, jobs, database objects), proposes a feature list, and **waits for approval**. Then drafts, for each approved feature: a record (`status: draft`), a case file with case outlines, and its code-map entries. Never sets `last_verified`. Never marks a case `automated`. Ends with a list of drafts, in a suggested order for verification (highest risk first) |
+| `/qa-discover` | Maps an existing repo's features. Reads the code (routes, pages, API handlers, jobs, database objects), proposes a feature list, and **waits for approval**. Then drafts, for each approved feature: a record (`status: draft`), a case file with case outlines, and its code-map entries. Removes the newly mapped paths from the baseline's `unmapped` list. Never sets `last_verified`. Never marks a case `automated`. Ends with a list of drafts, in a suggested order for verification (highest risk first) |
 | `/qa-doctor` | Runs `qa-doctor.mjs` and explains each finding |
-| `/qa-record <feature>` | Writes, updates or **verifies** a feature record and its case file against the code. Reads the code first; marks anything it cannot trace to code as **Assumed**, with who can confirm it. Sets `status: active` and `last_verified` only after checking every claim. Removes the feature's paths from the baseline's `unmapped` list |
+| `/qa-record <feature>` | Writes, updates or **verifies** a feature record and its case file against the code. Reads the code first; marks anything it cannot trace to code as **Assumed**, with who can confirm it. Sets `status: active` and `last_verified` only after checking every claim. The draft count falls by one |
 | `/qa-plan <issue or feature>` | Before code: lists the behaviours, writes or updates the cases, chooses the layer for each (§8.1), and proposes the tests |
 
 `/qa-review` (periodic coverage, flaky and slow-test review) ships with the reporting module in v0.2.
@@ -413,8 +418,8 @@ Every skill is a thin wrapper over the scripts. The work must also run in a plai
 | Step | Command | Result | Kind of work |
 |---|---|---|---|
 | 1 | `/qa-init` | Structure, manifest, scripts, hooks, CI step, and the baseline of existing unmapped code and unlinked spec files | Predictable; safe to run again; minutes |
-| 2 | `/qa-discover` | An approved feature list; draft records, case outlines and code-map entries | Judgment; reviewed by a person |
-| 3 | `/qa-record <feature>`, one feature at a time | The record checked against the code and made active; the baseline shrinks | Judgment; repeated over days or weeks |
+| 2 | `/qa-discover` | An approved feature list; draft records, case outlines and code-map entries. Mapped paths leave the baseline; the drafts appear in the draft count | Judgment; reviewed by a person |
+| 3 | `/qa-record <feature>`, one feature at a time | The record checked against the code and made active; the draft count falls | Judgment; repeated over days or weeks |
 | 4 | Day to day | `/qa-plan` before work; commit hook K1–K4; `qa:check` in CI; coverage view | Automatic |
 
 A new repo skips step 2: it writes records as features are built.
@@ -472,7 +477,7 @@ govkit's `/sdlc` reads this block when `qa-kit.json` exists, and runs the steps 
 A repo **conforms** to QA Kit v0.1 when:
 
 1. Its records and case files meet §5 (key names and paths may differ, through settings).
-2. Checks equivalent to R1–R5, C1–C7, M1–M3, L1–L6 run in CI or in the release gate, and fail the run.
+2. Checks equivalent to R1–R5, C1–C8, M1–M3, L1–L6 run in CI or in the release gate, and fail the run.
 3. K1, K2, K3 and K4 run at commit time.
 4. A coverage view exists.
 5. `qa-kit.json` declares the state, and the doctor reports no MISSING.

@@ -4,7 +4,7 @@
 //
 // Usage (from the repo root):
 //   node scripts/qa-check.mjs records     feature records (R1–R5)
-//   node scripts/qa-check.mjs cases       case files (C1–C7)
+//   node scripts/qa-check.mjs cases       case files (C1–C8)
 //   node scripts/qa-check.mjs map         the code → record map (M1–M3)
 //   node scripts/qa-check.mjs coverage    a Markdown coverage table; never fails
 //   node scripts/qa-check.mjs all         records, cases and map
@@ -56,6 +56,8 @@ const DEFAULT_SETTINGS = {
   codeMap: 'scripts/source-doc-map.json',
   mustMap: [],
   mustMapExceptions: [],
+  // Test files are not code: M3 and K1 skip them. Globs, matched against the file name.
+  testFilePatterns: ['*.test.*', '*.spec.*'],
   baseline: 'qa-baseline.json',
   trailers: { recordReviewed: 'Docs-Reviewed', testReviewed: 'Test-Reviewed' },
 };
@@ -122,6 +124,10 @@ function globToRegExp(pattern) {
 
 function matchesAny(path, globs) {
   return globs.some((g) => globToRegExp(g).test(path));
+}
+
+function isTestFile(cfg, path) {
+  return matchesAny(path.slice(path.lastIndexOf('/') + 1), cfg.settings.testFilePatterns);
 }
 
 function toList(v) {
@@ -304,7 +310,7 @@ function checkSections(record, required, report) {
   }
 }
 
-// ── cases: C1–C7 ─────────────────────────────────────────────────────────────
+// ── cases: C1–C8 ─────────────────────────────────────────────────────────────
 
 function checkCases(cfg, features, report) {
   const { settings, caseIdRe } = cfg;
@@ -312,6 +318,9 @@ function checkCases(cfg, features, report) {
   const seen = new Map(); // case ID → case file
 
   for (const f of features.caseFiles) {
+    if (!recordsById.has(f.featureId)) {
+      report.add('C8', f.rel, `The case file has no matching record. Create ${features.dirRel}/${f.featureId}.md, or rename the case file to match its record.`);
+    }
     if (f.error) {
       report.add('C7', f.rel, `The case file is not valid YAML (${f.error}), so no cases can be read. Fix the syntax.`);
       continue;
@@ -451,7 +460,7 @@ function checkMap(cfg, features, report) {
   // M3: every tracked file that must be mapped maps to a record.
   const mapsToRecord = (f) => mappings.some((m) => m.docs.some((d) => recordPaths.has(d)) && matchesAny(f, m.source));
   for (const f of files) {
-    if (!matchesAny(f, settings.mustMap) || matchesAny(f, settings.mustMapExceptions)) continue;
+    if (!matchesAny(f, settings.mustMap) || matchesAny(f, settings.mustMapExceptions) || isTestFile(cfg, f)) continue;
     if (!mapsToRecord(f)) {
       report.add('M3', f, `The file matches mustMap but maps to no record. Add it to a mapping in ${settings.codeMap}, or, if it is never a feature, to mustMapExceptions in ${MANIFEST}.`);
     }

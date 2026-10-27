@@ -1,4 +1,4 @@
-// Core checks: records (R1–R5), cases (C1–C7), map (M1–M3), coverage, all.
+// Core checks: records (R1–R5), cases (C1–C8), map (M1–M3), coverage, all.
 //
 // Every fixture is test/fixtures/pass with an overlay copied on top: the files in
 // test/fixtures/<name>/ replace or add to the passing repo. Each failing fixture
@@ -53,6 +53,7 @@ const PASSING = [
   ['pass-R4-apostrophe', 'records', "curly apostrophes, closing #'s and extra sections are fine"],
   ['pass-M2-draft', 'map', 'a draft record may map from no code'],
   ['pass-M3-exception', 'map', 'a path in mustMapExceptions needs no record'],
+  ['pass-M3-test-file', 'map', 'a test file needs no record'],
 ];
 
 for (const [name, command, why] of PASSING) {
@@ -83,6 +84,7 @@ const FAILING = [
   ['fail-C6', 'cases', 'C6', /expected is read as a number, not text\. Quote it in the YAML|has no action|expected is read as a map/],
   ['fail-C7-empty', 'cases', 'C7', /has no cases/],
   ['fail-C7-yaml', 'cases', 'C7', /not valid YAML/],
+  ['fail-C8', 'cases', 'C8', /search\.cases\.yaml: The case file has no matching record\. Create docs\/features\/search\.md/],
   ['fail-M1', 'map', 'M1', /names docs\/features\/sign-up\.md, which does not exist/],
   ['fail-M2', 'map', 'M2', /search\.md: The record maps from no code\. No mapping names it/],
   ['fail-M2-no-code', 'map', 'M2', /Its mappings match no tracked file/],
@@ -106,9 +108,9 @@ test('fail-C4 and fail-C6 report each bad key and step', (t) => {
   assert.equal(c6.problems.length, 3, c6.output);
 });
 
-test('every check ID R1–R5, C1–C7, M1–M3 has a failing fixture', () => {
+test('every check ID R1–R5, C1–C8, M1–M3 has a failing fixture', () => {
   const covered = new Set(FAILING.map(([, , id]) => id));
-  const ids = [1, 2, 3, 4, 5].map((n) => `R${n}`).concat([1, 2, 3, 4, 5, 6, 7].map((n) => `C${n}`), ['M1', 'M2', 'M3']);
+  const ids = [1, 2, 3, 4, 5].map((n) => `R${n}`).concat([1, 2, 3, 4, 5, 6, 7, 8].map((n) => `C${n}`), ['M1', 'M2', 'M3']);
   for (const id of ids) assert.ok(covered.has(id), `${id} has no failing fixture`);
 });
 

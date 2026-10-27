@@ -10,7 +10,7 @@ All notable changes to QA Kit. The format follows [Keep a Changelog](https://kee
 - Repo skeleton: README, MIT license (Techsilon LLC), Claude Code plugin and marketplace manifests, `package.json` (dev dependency `yaml` 2.9.1).
 - `scripts/check-private-terms.mjs`: blocks private terms in tracked files and commit messages. Whole-word, case-insensitive matching. Runs in `npm test`, in the `pre-commit` and `commit-msg` hooks, and in CI.
 - `npm install` points git at `.githooks/` (the `prepare` script).
-- `qa-check` (vendored template at `skills/qa-init/templates/scripts/qa-check.mjs`): `records` (R1–R5), `cases` (C1–C7), `map` (M1–M3), `coverage`, `all`. A passing fixture repo and a failing fixture for every check ID under `test/fixtures/`.
+- `qa-check` (vendored template at `skills/qa-init/templates/scripts/qa-check.mjs`): `records` (R1–R5), `cases` (C1–C8), `map` (M1–M3), `coverage`, `all`. A passing fixture repo and a failing fixture for every check ID under `test/fixtures/`.
 - CI workflow: runs on every push and on pull requests from forks; Node 22 and 24; private-terms check from the `PRIVATE_TERMS` secret, then `npm test`.
 - README section "Maintaining the private-terms guard".
 - Plugin manifests checked with `claude plugin validate --strict`. The marketplace entry no longer repeats `version`; `plugin.json` holds it.
@@ -28,3 +28,7 @@ All notable changes to QA Kit. The format follows [Keep a Changelog](https://kee
 - **R4:** headings are compared after trimming, with straight and curly apostrophes treated as equal. (§5.2)
 - **Node:** the minimum is Node 22 (was 20, which reached end of life in April 2026). (§13)
 - **Clarified while building the checks:** a record that does not parse fails R1; a case file that does not parse fails C7; a missing or invalid code map fails M1. C5 skips retired cases. M2 means "no mapping that names the record matches a tracked file". M3 counts a mapping to a record of any status. Glob rules spelled out (`?` is literal); `mustMap` and `mustMapExceptions` are globs; QA Kit reads only map entries inside `featuresDir`. Coverage skips retired cases and marks retired records and case files with no record. (§6.1–§6.4)
+- **C8 (new):** a case file has no matching record. (§6.2)
+- **`automated_by` for `api` cases:** still required. It says how to run the check by hand: the script, the request file, or a short description. (§5.3)
+- **Test files:** one setting, `testFilePatterns` (default `*.test.*`, `*.spec.*`, matched against the file name), shared by M3 and K1. M3 now skips test files. (§5.4, §6.3, §7)
+- **Baseline meaning:** `unmapped` holds code with no record at all. A path leaves it as soon as it maps to a record of any status, so `/qa-discover` shrinks it when it writes drafts. Verification is tracked by the draft count: `/qa-record` makes a draft active and the draft count falls. (§6.3, §9, §9.1)

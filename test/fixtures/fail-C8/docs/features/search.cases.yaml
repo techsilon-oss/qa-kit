@@ -1,0 +1,9 @@
+feature: search
+cases:
+  - id: SRCH-01
+    title: A visitor finds an order by its number
+    priority: P0
+    type: manual
+    steps:
+      - action: Search for an order number.
+        expected: The order opens.
