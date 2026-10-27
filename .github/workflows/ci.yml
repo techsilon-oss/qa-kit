@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node: [20, 24]
+        node: [22, 24]
     env:
       PRIVATE_TERMS: ${{ secrets.PRIVATE_TERMS }}
     steps:

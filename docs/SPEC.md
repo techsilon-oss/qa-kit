@@ -501,7 +501,7 @@ Each issue states: what it would check, why, the trigger, and "ships nothing yet
 ## 13. Engineering rules for the kit itself
 
 - Runners (`qa-check.mjs`, `qa-doctor.mjs`) use Node built-ins plus **one** dependency: the `yaml` npm package, installed per repo as a dev dependency (the same pattern as `tsx` for govkit's release gate). Verify the current version of `yaml` before you pin it.
-- Node 20 or later.
+- Node 22 or later.
 - Tests use `node:test`, with fixture repos under `test/fixtures/`. Every check ID (R1…L6, K1–K4) has a passing and a failing fixture.
 - Vendored files are copied verbatim into a repo, and the manifest records `vendoredVersion`. Fix bugs in `qa-kit`, never in a copy.
 - Messages are plain language: what, where, what to do.

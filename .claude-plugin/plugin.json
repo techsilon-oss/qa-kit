@@ -5,6 +5,8 @@
   "author": {
     "name": "Techsilon LLC"
   },
+  "homepage": "https://github.com/techsilon-oss/qa-kit#readme",
+  "repository": "https://github.com/techsilon-oss/qa-kit",
   "license": "MIT",
   "keywords": [
     "qa",

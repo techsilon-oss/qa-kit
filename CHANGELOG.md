@@ -10,7 +10,9 @@ All notable changes to QA Kit. The format follows [Keep a Changelog](https://kee
 - Repo skeleton: README, MIT license (Techsilon LLC), Claude Code plugin and marketplace manifests, `package.json` (dev dependency `yaml` 2.9.1).
 - `scripts/check-private-terms.mjs`: blocks private terms in tracked files and commit messages. Whole-word, case-insensitive matching. Runs in `npm test`, in the `pre-commit` and `commit-msg` hooks, and in CI.
 - `npm install` points git at `.githooks/` (the `prepare` script).
-- CI workflow: Node 20 and 24; private-terms check from the `PRIVATE_TERMS` secret, then `npm test`.
+- CI workflow: Node 22 and 24; private-terms check from the `PRIVATE_TERMS` secret, then `npm test`.
+- README section "Maintaining the private-terms guard".
+- Plugin manifests checked with `claude plugin validate --strict`. The marketplace entry no longer repeats `version`; `plugin.json` holds it.
 
 ### Spec changes (from the first draft of v0.1)
 
@@ -23,3 +25,4 @@ All notable changes to QA Kit. The format follows [Keep a Changelog](https://kee
 - **Case type:** `api` means a call run by hand. An API test run by a tool is `automated`, with `automated_by` naming the test file. (§4)
 - **Coverage:** the column "Automated: unit" is renamed "Automated: unit/API". "P0 cases not automated" also lists P0 cases of type `api`. (§6.4)
 - **R4:** headings are compared after trimming, with straight and curly apostrophes treated as equal. (§5.2)
+- **Node:** the minimum is Node 22 (was 20, which reached end of life in April 2026). (§13)
