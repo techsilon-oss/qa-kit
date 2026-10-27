@@ -1,0 +1,19 @@
+{
+  "name": "qa-kit",
+  "description": "Feature records, test cases and the checks that keep them in step with the code: code -> feature record -> test case -> automated test.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Techsilon LLC"
+  },
+  "license": "MIT",
+  "keywords": [
+    "qa",
+    "testing",
+    "traceability",
+    "test-cases",
+    "feature-records",
+    "playwright",
+    "claude-code",
+    "git-hooks"
+  ]
+}

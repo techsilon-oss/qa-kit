@@ -1,0 +1,19 @@
+{
+  "name": "qa-kit",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Feature records, test cases and the checks that keep them in step with the code.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "prepare": "node scripts/install-hooks.mjs",
+    "check:private-terms": "node scripts/check-private-terms.mjs",
+    "test": "node scripts/check-private-terms.mjs && node scripts/run-tests.mjs"
+  },
+  "devDependencies": {
+    "yaml": "2.9.1"
+  }
+}

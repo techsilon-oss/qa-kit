@@ -1,0 +1,4 @@
+# Store every text file with LF line endings.
+# The git hooks in .githooks/ depend on it: with CRLF, "#!/bin/sh\r" names an
+# interpreter that does not exist, and git skips a hook it cannot run.
+* text=auto eol=lf

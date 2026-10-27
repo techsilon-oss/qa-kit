@@ -1,0 +1,19 @@
+{
+  "name": "qa-kit-marketplace",
+  "description": "Marketplace for QA Kit.",
+  "owner": {
+    "name": "Techsilon LLC"
+  },
+  "plugins": [
+    {
+      "name": "qa-kit",
+      "description": "Feature records, test cases and their traceability checks.",
+      "version": "0.1.0",
+      "source": "./",
+      "author": {
+        "name": "Techsilon LLC"
+      },
+      "license": "MIT"
+    }
+  ]
+}
