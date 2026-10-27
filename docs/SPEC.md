@@ -334,6 +334,19 @@ Run from the repo's `commit-msg` hook (any hook system: `core.hooksPath`, Husky 
 - K4 blocks when a staged case file does not parse, because it cannot read the case IDs.
 - **Known limit:** the checks compare the index with `HEAD`. With `git commit --amend`, `HEAD` is the commit being replaced, so only the changes added in the amend are checked.
 
+### 7.1 In CI — `qa-check commit-range <base> <head>`
+
+The commit-msg hook runs only on a machine that has it. A commit from the GitHub web editor, from a machine without the hooks, or made with `--no-verify` skips K1, K2 and K4. CI closes that gap.
+
+`qa-check commit-range <base> <head>` runs K1, K2 and K4 over the combined change of the range:
+
+- The combined change is `git diff <base> <head>`. `<base>` takes the place of `HEAD`, and `<head>` takes the place of the staged copy.
+- A trailer in the message of any commit in `<base>..<head>` counts.
+- Merge commits are skipped as before: their messages are not read, and a range that holds only merge commits passes.
+- The rules above apply unchanged, except the limit with `--amend`, which does not arise.
+
+The CI workflow template (installed by `/qa-init`) runs it on every push and every pull request. For a pull request, and for a push to a branch other than the target branch, `<base>` is the merge base with the target branch. For a push to the target branch itself, `<base>` is the branch tip before the push.
+
 ## 8. Automation module
 
 ### 8.1 Choosing the layer (the standard)
@@ -483,7 +496,7 @@ A repo **conforms** to QA Kit v0.1 when:
 
 1. Its records and case files meet §5 (key names and paths may differ, through settings).
 2. Checks equivalent to R1–R5, C1–C8, M1–M3, L1–L6 run in CI or in the release gate, and fail the run.
-3. K1, K2, K3 and K4 run at commit time.
+3. K1, K2, K3 and K4 run at commit time, and K1, K2 and K4 also run in CI over each push and pull request (§7.1).
 4. A coverage view exists.
 5. `qa-kit.json` declares the state, and the doctor reports no MISSING.
 
