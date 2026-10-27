@@ -8,6 +8,9 @@
 //   node scripts/qa-check.mjs map         the code → record map (M1–M3)
 //   node scripts/qa-check.mjs coverage    a Markdown coverage table; never fails
 //   node scripts/qa-check.mjs all         records, cases and map
+//   node scripts/qa-check.mjs commit-msg <file>
+//                                         commit-time coupling (K1, K2, K4); run it
+//                                         from the commit-msg hook with the hook's $1
 //
 // Options:
 //   --root <dir>   the repo root (default: the current directory)
@@ -128,6 +131,11 @@ function matchesAny(path, globs) {
 
 function isTestFile(cfg, path) {
   return matchesAny(path.slice(path.lastIndexOf('/') + 1), cfg.settings.testFilePatterns);
+}
+
+// A path in automated_by that matches the automation module's specGlob is a browser link.
+function isBrowserSpec(cfg, path) {
+  return cfg.automation.specGlob !== null && matchesAny(path, [cfg.automation.specGlob]);
 }
 
 function toList(v) {
@@ -481,7 +489,7 @@ function baselineSize(cfg) {
 }
 
 function coverage(cfg, features) {
-  const isBrowserLink = (p) => cfg.automation.specGlob !== null && matchesAny(p, [cfg.automation.specGlob]);
+  const isBrowserLink = (p) => isBrowserSpec(cfg, p);
   const filesById = new Map(features.caseFiles.map((f) => [f.featureId, f]));
   const ids = [...new Set([...features.records.map((r) => r.featureId), ...filesById.keys()])].sort();
   const recordsById = new Map(features.records.map((r) => [r.featureId, r]));
@@ -521,6 +529,238 @@ function coverage(cfg, features) {
   return lines.join('\n');
 }
 
+// ── commit-msg: K1, K2, K4 ───────────────────────────────────────────────────
+//
+// Runs from the repo's commit-msg hook. Reads the staged files and their staged
+// content (git show :<path>), and compares case files with HEAD.
+
+function gitOut(root, args) {
+  return execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] });
+}
+
+// The content of `path` at `rev` ("" means the index), or null when it is not there.
+function gitShow(root, rev, path) {
+  try {
+    return gitOut(root, ['show', `${rev}:${path}`]);
+  } catch {
+    return null;
+  }
+}
+
+function hasHead(root) {
+  try {
+    gitOut(root, ['rev-parse', '--verify', '-q', 'HEAD']);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isMerge(root) {
+  const path = gitOut(root, ['rev-parse', '--git-path', 'MERGE_HEAD']).trim();
+  return existsSync(resolve(root, path));
+}
+
+function stagedFiles(root, filter) {
+  return gitOut(root, ['diff', '--cached', '--name-only', '-z', `--diff-filter=${filter}`]).split('\0').filter(Boolean);
+}
+
+// The message as git will store it: no "#" comment lines, nothing below a scissors line.
+function readMessage(file) {
+  const lines = readText(file).split(/\r?\n/);
+  const cut = lines.findIndex((l) => /^# -+ >8 -+$/.test(l));
+  return (cut === -1 ? lines : lines.slice(0, cut)).filter((l) => !l.startsWith('#'));
+}
+
+// "<Name>: <subject> — <reason>". The dash may be —, – or -, with a space on each side.
+function parseTrailers(lines, name) {
+  const re = new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:\\s*(.+?)\\s+[—–-]\\s+(.*)$`, 'i');
+  const out = [];
+  for (const line of lines) {
+    const m = re.exec(line.trim());
+    if (m) out.push({ subject: m[1].trim(), reason: m[2].trim(), line: line.trim() });
+    else if (new RegExp(`^${name}:`, 'i').test(line.trim())) out.push({ subject: null, reason: '', line: line.trim() });
+  }
+  return out;
+}
+
+const MIN_REASON = 10;
+
+// Is `subject` excused by a trailer? Returns null when excused, or the reason it is not.
+function trailerFor(trailers, subject, name, form) {
+  const own = trailers.filter((t) => t.subject === subject);
+  if (own.length === 0) return `Stage it, or add "${name}: ${form} — <reason>" to the commit message.`;
+  if (own.some((t) => t.reason.length >= MIN_REASON)) return null;
+  return `The reason in "${own[0].line}" is too short. Write ${MIN_REASON} or more characters after the dash.`;
+}
+
+function stagedCodeMap(cfg) {
+  const rel = cfg.settings.codeMap;
+  const text = gitShow(cfg.root, '', rel) ?? (existsSync(join(cfg.root, rel)) ? readText(join(cfg.root, rel)) : null);
+  if (text === null) return [];
+  try {
+    const data = JSON.parse(text);
+    return toList(data?.mappings).map((m) => ({
+      source: toList(m?.source).filter((s) => typeof s === 'string'),
+      docs: toList(m?.docs).filter((s) => typeof s === 'string'),
+    }));
+  } catch {
+    return []; // qa-check map reports a broken map
+  }
+}
+
+function featuresDirOf(cfg) {
+  return `${cfg.settings.featuresDir.replace(/\/+$/, '')}/`;
+}
+
+function isRecordPath(cfg, p) {
+  const dir = featuresDirOf(cfg);
+  return p.startsWith(dir) && p.endsWith('.md') && !p.slice(dir.length).includes('/') && p !== dir + cfg.settings.records.readme;
+}
+
+function isCaseFilePath(cfg, p) {
+  const dir = featuresDirOf(cfg);
+  return p.startsWith(dir) && p.endsWith(cfg.settings.casesSuffix) && !p.slice(dir.length).includes('/');
+}
+
+// K1: staged code needs its records staged, or a Docs-Reviewed trailer per record.
+function checkK1(cfg, staged, message, report, notes) {
+  const name = cfg.settings.trailers.recordReviewed;
+  const trailers = parseTrailers(message, name);
+  const stagedSet = new Set(staged);
+  const code = staged.filter((f) => !isTestFile(cfg, f) && !isRecordPath(cfg, f) && !isCaseFilePath(cfg, f));
+  const mappings = stagedCodeMap(cfg);
+
+  const needed = new Map(); // record or case file → code that needs it
+  for (const m of mappings) {
+    const hits = code.filter((f) => matchesAny(f, m.source));
+    if (hits.length === 0) continue;
+    for (const doc of m.docs) {
+      if (!isRecordPath(cfg, doc) && !isCaseFilePath(cfg, doc)) continue;
+      if (!needed.has(doc)) needed.set(doc, new Set());
+      for (const h of hits) needed.get(doc).add(h);
+    }
+  }
+
+  for (const [doc, hits] of [...needed].sort(([a], [b]) => a.localeCompare(b))) {
+    if (stagedSet.has(doc)) continue;
+    const exists = existsSync(join(cfg.root, doc)) || gitShow(cfg.root, '', doc) !== null || gitShow(cfg.root, 'HEAD', doc) !== null;
+    if (!exists) continue; // the doc exists nowhere; qa-check map reports it (M1)
+    const files = [...hits].sort();
+    const what = files.length === 1 ? files[0] : `${files[0]} and ${files.length - 1} more`;
+    if (isRecordPath(cfg, doc)) {
+      const why = trailerFor(trailers, doc, name, doc);
+      if (why) report.add('K1', doc, `The commit changes ${what}, which maps to this record, but the record is not staged. ${why}`);
+    } else {
+      notes.push(`note: the commit changes ${what}, which maps to ${doc}. Check that its cases still hold.`);
+    }
+  }
+}
+
+function parseCaseYaml(text) {
+  if (text === null) return { cases: null };
+  try {
+    const data = parseYaml(text);
+    return { cases: isPlainObject(data) && Array.isArray(data.cases) ? data.cases.filter(isPlainObject) : [] };
+  } catch (err) {
+    return { cases: null, error: err.message.split('\n')[0] };
+  }
+}
+
+function browserLinks(cfg, c) {
+  return splitLinks(c?.automated_by).filter((p) => isBrowserSpec(cfg, p));
+}
+
+function sameValue(a, b) {
+  return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+}
+
+// K2: a changed case with a browser link needs its spec staged, or a Test-Reviewed trailer.
+function checkK2(cfg, stagedWithDeletes, message, report) {
+  const name = cfg.settings.trailers.testReviewed;
+  const trailers = parseTrailers(message, name);
+  const stagedSet = new Set(stagedWithDeletes);
+
+  for (const file of stagedWithDeletes.filter((f) => isCaseFilePath(cfg, f))) {
+    const before = parseCaseYaml(gitShow(cfg.root, 'HEAD', file)).cases;
+    if (!before) continue; // a new case file, or one that did not parse at HEAD
+    const after = new Map((parseCaseYaml(gitShow(cfg.root, '', file)).cases ?? []).map((c) => [c.id, c]));
+
+    for (const old of before) {
+      const now = after.get(old.id);
+      if (!now) continue; // removed or moved: K4 decides
+      const linksBefore = browserLinks(cfg, old);
+      const linksNow = browserLinks(cfg, now);
+      if (linksBefore.length === 0 && linksNow.length === 0) continue;
+      const changed = ['title', 'preconditions', 'steps'].filter((k) => !sameValue(old[k], now[k]));
+      const unlinked = linksBefore.filter((l) => !linksNow.includes(l));
+      if (changed.length === 0 && unlinked.length === 0) continue;
+
+      const specs = [...new Set([...linksBefore, ...linksNow])].sort();
+      const unstaged = specs.filter((s) => !stagedSet.has(s));
+      if (unstaged.length === 0) continue;
+      const why = trailerFor(trailers, String(old.id), name, String(old.id));
+      if (why) {
+        const what = [...changed.map((k) => `its ${k}`), ...(unlinked.length ? ['its browser link'] : [])].join(', ');
+        report.add('K2', `${file} ${old.id}`, `The commit changes ${what}, but the linked test ${unstaged.join(', ')} is not staged. ${why}`);
+      }
+    }
+  }
+}
+
+function caseIdsIn(cfg, rev) {
+  const files =
+    rev === 'HEAD'
+      ? gitOut(cfg.root, ['ls-tree', '-r', '-z', '--name-only', 'HEAD']).split('\0').filter(Boolean)
+      : gitOut(cfg.root, ['ls-files', '-z']).split('\0').filter(Boolean);
+  const ids = new Map(); // id → file
+  const unreadable = [];
+  for (const f of files.filter((p) => isCaseFilePath(cfg, p))) {
+    const { cases, error } = parseCaseYaml(gitShow(cfg.root, rev, f));
+    if (error) unreadable.push({ file: f, error });
+    for (const c of cases ?? []) if (typeof c.id === 'string' && !ids.has(c.id)) ids.set(c.id, f);
+  }
+  return { ids, unreadable };
+}
+
+// K4: no commit removes a case ID that exists at HEAD.
+function checkK4(cfg, report) {
+  const before = caseIdsIn(cfg, 'HEAD');
+  const after = caseIdsIn(cfg, '');
+  for (const u of after.unreadable) {
+    report.add('K4', u.file, `The staged case file is not valid YAML (${u.error}), so K4 cannot check that no case was removed. Fix the syntax.`);
+  }
+  const unreadable = new Set(after.unreadable.map((u) => u.file));
+  for (const [id, file] of [...before.ids].sort(([a], [b]) => a.localeCompare(b))) {
+    if (after.ids.has(id) || unreadable.has(file)) continue;
+    report.add('K4', `${file} ${id}`, `The commit removes the case ${id}. Cases are never deleted: restore it and set "status: retired" on it instead.`);
+  }
+}
+
+function commitMsg(cfg, messageFile) {
+  const report = new Report();
+  const notes = [];
+  if (isMerge(cfg.root)) {
+    console.log('qa-check commit-msg: merge commit; skipped');
+    return 0;
+  }
+  const message = readMessage(messageFile);
+  checkK1(cfg, stagedFiles(cfg.root, 'ACMR'), message, report, notes);
+  if (hasHead(cfg.root)) {
+    checkK2(cfg, stagedFiles(cfg.root, 'ACMRD'), message, report);
+    checkK4(cfg, report);
+  }
+  for (const n of notes) console.log(n);
+  if (report.problems.length === 0) {
+    console.log('qa-check commit-msg: OK');
+    return 0;
+  }
+  for (const p of report.problems) console.error(`${p.id}  ${p.where}: ${p.message}`);
+  const n = report.problems.length;
+  console.error(`qa-check commit-msg: commit blocked, ${n} problem${n === 1 ? '' : 's'}.`);
+  return 1;
+}
+
 // ── CLI ──────────────────────────────────────────────────────────────────────
 
 const CHECKS = {
@@ -548,18 +788,20 @@ function printReport(label, report) {
 }
 
 function parseArgs(argv) {
-  const opts = { command: null, root: process.cwd() };
+  const opts = { command: null, args: [], root: process.cwd() };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--root') {
       if (!argv[i + 1]) throw new UsageError('--root needs a directory.');
       opts.root = resolve(argv[++i]);
     } else if (!opts.command) opts.command = argv[i];
-    else throw new UsageError(`Unexpected argument "${argv[i]}".`);
+    else opts.args.push(argv[i]);
   }
+  const want = opts.command === 'commit-msg' ? 1 : 0;
+  if (opts.args.length > want) throw new UsageError(`Unexpected argument "${opts.args[want]}".`);
   return opts;
 }
 
-const USAGE = 'Usage: node scripts/qa-check.mjs <records|cases|map|coverage|all> [--root <dir>]';
+const USAGE = 'Usage: node scripts/qa-check.mjs <records|cases|map|coverage|all|commit-msg <file>> [--root <dir>]';
 
 function main(argv) {
   const opts = parseArgs(argv);
@@ -575,6 +817,10 @@ function main(argv) {
     case 'coverage':
       console.log(coverage(cfg, loadFeatures(cfg)));
       return 0;
+    case 'commit-msg':
+      if (opts.args.length === 0) throw new UsageError('commit-msg needs the commit message file: the hook\'s $1.');
+      if (!existsSync(opts.args[0])) throw new UsageError(`The commit message file ${opts.args[0]} does not exist.`);
+      return commitMsg(cfg, resolve(opts.args[0]));
     default:
       throw new UsageError(`Unknown command "${opts.command}". ${USAGE}`);
   }

@@ -11,6 +11,7 @@ All notable changes to QA Kit. The format follows [Keep a Changelog](https://kee
 - `scripts/check-private-terms.mjs`: blocks private terms in tracked files and commit messages. Whole-word, case-insensitive matching. Runs in `npm test`, in the `pre-commit` and `commit-msg` hooks, and in CI.
 - `npm install` points git at `.githooks/` (the `prepare` script).
 - `qa-check` (vendored template at `skills/qa-init/templates/scripts/qa-check.mjs`): `records` (R1–R5), `cases` (C1–C8), `map` (M1–M3), `coverage`, `all`. A passing fixture repo and a failing fixture for every check ID under `test/fixtures/`.
+- `qa-check commit-msg <file>`: commit-time coupling K1, K2 and K4, for the repo's `commit-msg` hook. Tests build real git repos, and one runs `git commit` through an installed hook.
 - CI workflow: runs on every push and on pull requests from forks; Node 22 and 24; private-terms check from the `PRIVATE_TERMS` secret, then `npm test`.
 - README section "Maintaining the private-terms guard".
 - Plugin manifests checked with `claude plugin validate --strict`. The marketplace entry no longer repeats `version`; `plugin.json` holds it.
@@ -32,3 +33,4 @@ All notable changes to QA Kit. The format follows [Keep a Changelog](https://kee
 - **`automated_by` for `api` cases:** still required. It says how to run the check by hand: the script, the request file, or a short description. (§5.3)
 - **Test files:** one setting, `testFilePatterns` (default `*.test.*`, `*.spec.*`, matched against the file name), shared by M3 and K1. M3 now skips test files. (§5.4, §6.3, §7)
 - **Baseline meaning:** `unmapped` holds code with no record at all. A path leaves it as soon as it maps to a record of any status, so `/qa-discover` shrinks it when it writes drafts. Verification is tracked by the draft count: `/qa-record` makes a draft active and the draft count falls. (§6.3, §9, §9.1)
+- **Clarified while building commit-time coupling:** trailer syntax (the dash may be —, – or -; comment lines and a scissors line are not part of the message); records and case files are not code for K1; K1 reads the staged code map and only feature docs inside `featuresDir`; when K2 counts a case as linked, what triggers it, and that every linked spec must be staged; K4 blocks on a staged case file that does not parse; known limit with `git commit --amend`. (§7)

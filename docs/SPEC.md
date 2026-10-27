@@ -322,12 +322,17 @@ Run from the repo's `commit-msg` hook (any hook system: `core.hooksPath`, Husky 
 
 **Rules:**
 
+- A trailer is one line of the message: `<Name>: <subject> — <reason>`. The dash may be `—`, `–` or `-`, with a space on each side. Lines that start with `#`, and everything below a scissors line (`# --- >8 ---`), are not part of the message.
 - A reason must have 10 or more characters after the dash. "ok" does not count.
 - Trailer names are settings (`settings.trailers`).
 - K2 compares the case at `HEAD` with the staged copy (`git show HEAD:<path>` and `git show :<path>`). A new case file has nothing at `HEAD` and passes.
 - K4 compares all case IDs in case files at `HEAD` with all case IDs in the staged case files. Deleting or renaming a case file counts.
 - A change that removes a browser link still counts as a change to a linked case.
-- Test files (`testFilePatterns`, §6.3) are not "code" for K1.
+- Test files (`testFilePatterns`, §6.3), records and case files are not "code" for K1.
+- K1 reads the staged copy of the code map. It considers only the records and case files inside `featuresDir`; other docs in the shared map belong to govkit. A record that exists nowhere (not on disk, staged or at `HEAD`) is skipped; M1 reports it.
+- K2 treats a case as linked when it has a browser link at `HEAD` or in the staged copy. It blocks when the title, preconditions or steps change, or when a browser link present at `HEAD` is removed. Every spec the case links to, at `HEAD` or staged, must be staged; a staged deletion counts as staged.
+- K4 blocks when a staged case file does not parse, because it cannot read the case IDs.
+- **Known limit:** the checks compare the index with `HEAD`. With `git commit --amend`, `HEAD` is the commit being replaced, so only the changes added in the amend are checked.
 
 ## 8. Automation module
 
