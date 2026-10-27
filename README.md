@@ -78,7 +78,7 @@ It runs in four places:
 | `pre-commit` hook | Every commit | `.private-terms` |
 | `commit-msg` hook | Every commit, on the new message | `.private-terms` |
 | `npm test` | Every test run | `.private-terms` |
-| CI | Every push to `main`, every pull request from this repo | The `PRIVATE_TERMS` secret |
+| CI | Every push, on any branch | The `PRIVATE_TERMS` secret |
 
 ### The two copies of the list
 

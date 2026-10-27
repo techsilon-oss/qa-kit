@@ -1,8 +1,10 @@
 name: CI
 
+# Every push runs CI, on any branch. A pull request from this repo is already
+# covered by the push of its branch, so the pull_request event runs only for
+# pull requests from forks.
 on:
   push:
-    branches: [main]
   pull_request:
 
 permissions:
@@ -10,6 +12,7 @@ permissions:
 
 jobs:
   test:
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -26,9 +29,9 @@ jobs:
           node-version: ${{ matrix.node }}
 
       # A pull request from a fork cannot read repository secrets, so this step
-      # runs only for pushes and for pull requests from this repository.
+      # runs only for pushes.
       - name: Check private terms
-        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+        if: github.event_name == 'push'
         run: node scripts/check-private-terms.mjs --require
 
       - run: npm ci

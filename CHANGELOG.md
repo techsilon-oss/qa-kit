@@ -10,7 +10,7 @@ All notable changes to QA Kit. The format follows [Keep a Changelog](https://kee
 - Repo skeleton: README, MIT license (Techsilon LLC), Claude Code plugin and marketplace manifests, `package.json` (dev dependency `yaml` 2.9.1).
 - `scripts/check-private-terms.mjs`: blocks private terms in tracked files and commit messages. Whole-word, case-insensitive matching. Runs in `npm test`, in the `pre-commit` and `commit-msg` hooks, and in CI.
 - `npm install` points git at `.githooks/` (the `prepare` script).
-- CI workflow: Node 22 and 24; private-terms check from the `PRIVATE_TERMS` secret, then `npm test`.
+- CI workflow: runs on every push and on pull requests from forks; Node 22 and 24; private-terms check from the `PRIVATE_TERMS` secret, then `npm test`.
 - README section "Maintaining the private-terms guard".
 - Plugin manifests checked with `claude plugin validate --strict`. The marketplace entry no longer repeats `version`; `plugin.json` holds it.
 
