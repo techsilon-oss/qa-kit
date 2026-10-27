@@ -62,7 +62,7 @@
         "file": "scripts/sdlc-docs.mjs",
         "change": "Comment-only change that removes repository names: the two provenance lines at the top of the header comment are replaced by \"Vendored from techsilon-oss/govkit.\" The code is unchanged.",
         "why": "This repo is public and names no other repository; check-private-terms blocks the template's comment.",
-        "until": "Drop this exception and re-vendor scripts/sdlc-docs.mjs when govkit's template no longer names repositories (docs/PRIORITY-ROADMAP.md, govkit tasks)."
+        "until": "Permanent: govkit's provenance comments stay as they are (owner decision, 2026-10-27). Re-apply this change whenever scripts/sdlc-docs.mjs is re-vendored."
       }
     },
 

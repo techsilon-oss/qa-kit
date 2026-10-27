@@ -54,6 +54,9 @@ Last checked: 2026-10-27
 ### DEC-013: Guardrails skipped until they apply
 2026-10-27 · `supabase-account` is skipped (this repo uses no Supabase). `versioning` is skipped until v0.1.0 (pre-release). Both reasons are recorded in `govkit.json`. · A skipped guardrail is a recorded decision, not a gap. · Active
 
+### DEC-014: govkit's provenance comments stay; qa-kit keeps its exception
+2026-10-27 · Provenance comments in govkit's templates and README stay as they are. qa-kit vendors `scripts/sdlc-docs.mjs` with a comment-only change that removes repository names, recorded as a permanent exception in `govkit.json`. · Owner decision. · Active
+
 ## Session Handoff
 
 ### Session 1 — 2026-10-27 — Phases 0–3a, govkit adoption

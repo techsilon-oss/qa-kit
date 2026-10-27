@@ -74,7 +74,7 @@ Each is its own PR in its own repo, with the owner's OK first.
 
 - **techsilon-oss/govkit — the `/sdlc` extension point** (spec §10.3). When a sibling kit's manifest (`qa-kit.json`) has an `sdlc` block, govkit's `/sdlc` runs its `plan` step while planning, its `beforePr` step before opening a PR, and its `sessionClose` step at session close. No QA Kit logic goes into govkit; it only reads the block. Bump govkit's version, and update its README and roadmap.
 - **techsilon-oss/govkit — template fixes found while adopting govkit here.**
-  - Remove repository and product names from govkit's README, its `CLAUDE.md` template and the `sdlc-docs.mjs` template comment. Then re-vendor `scripts/sdlc-docs.mjs` here and drop the `doc-sync` exception in `govkit.json`.
+  - Provenance comments in govkit's templates and README stay as they are (owner decision, 2026-10-27). qa-kit keeps its comment-only exception in `sdlc-docs.mjs`.
   - Update the action versions in the `sdlc-docs.yml` template (`actions/checkout` and `actions/setup-node` are at v4; this repo's CI uses v7).
   - In the `sdlc-docs.yml` template, stop the comment step from failing a pull request from a fork: such a run gets a read-only token and cannot write the comment.
 - **techsilon-oss/govkit and techsilon-oss/release-gate-kit — the MIT license.** Add an MIT `LICENSE` (holder: Techsilon LLC). Change the license field from CC0-1.0 to MIT (`plugin.json` and `marketplace.json` in govkit; `package.json` in release-gate-kit). Update the README "License" section to say: "MIT from version <next>. Earlier releases were published under CC0-1.0 and stay CC0-1.0." Bump each repo's version as its own CHANGELOG or roadmap does.
