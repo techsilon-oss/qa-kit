@@ -1,0 +1,9 @@
+feature: refunds
+cases:
+  - id: SIGN-01
+    title: An operator refunds an order in full
+    priority: P1
+    type: manual
+    steps:
+      - action: Refund a paid order.
+        expected: The order shows as refunded.

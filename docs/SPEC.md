@@ -232,6 +232,8 @@ All checks print plain-language problems: what is wrong, where, and what to do. 
 | R4 | A required section is missing or out of order |
 | R5 | A record has no case file |
 
+A record whose frontmatter does not parse as YAML fails R1.
+
 ### 6.2 Cases — `qa-check cases`
 
 | ID | Fails when |
@@ -244,6 +246,8 @@ All checks print plain-language problems: what is wrong, where, and what to do. 
 | C6 | A step has no `action` or no `expected`, or a value is not a plain string |
 | C7 | A case file has no cases |
 
+A case file that does not parse as YAML fails C7: no case can be read from it. C5 skips a case with `status: retired`, because retiring a case removes its links (§5.3).
+
 ### 6.3 Code map — `qa-check map`
 
 QA Kit reads the code→doc map in govkit's format:
@@ -252,16 +256,18 @@ QA Kit reads the code→doc map in govkit's format:
 { "mappings": [ { "source": ["src/sign-in/**"], "docs": ["docs/features/sign-in.md", "docs/features/sign-in.cases.yaml"] } ] }
 ```
 
-Globs: `*` matches within one folder; `**` matches across folders.
+Globs: `*` matches any run of characters except `/`; `**` matches any run of characters, `/` included. Every other character, `?` included, matches itself. `mustMap` and `mustMapExceptions` entries are globs too, so a plain path is a glob that matches only itself.
+
+The map may also name docs that are not feature records (it is shared with govkit). QA Kit reads only the entries inside `featuresDir`.
 
 | ID | Fails when |
 |---|---|
 | M1 | A mapping names a record or a case file that does not exist |
-| M2 | An active record maps from no code. Draft and retired records are skipped |
-| M3 | A tracked file (`git ls-files`) that matches `mustMap` maps to no record (unless it is in `mustMapExceptions` or in the baseline's `unmapped` list) |
+| M2 | An active record maps from no code: no mapping that names the record has a `source` glob that matches a tracked file. Draft and retired records are skipped |
+| M3 | A tracked file (`git ls-files`) that matches `mustMap` maps to no record of any status (unless it is in `mustMapExceptions` or in the baseline's `unmapped` list) |
 | M4 | A baseline entry is stale: a path in `unmapped` now maps to a record or no longer exists, or a file in `unlinkedSpecs` now has only linked tests or no longer exists. Remove it from the baseline |
 
-If the map file does not exist, `/qa-init` creates it with an example mapping that gates nothing until edited, and the doctor says so.
+If the map file does not exist, `/qa-init` creates it with an example mapping that gates nothing until edited, and the doctor says so. If it is still missing, or is not valid JSON with a `mappings` list, `qa-check map` fails with M1.
 
 **The baseline (existing code and existing tests).** On an existing repo, M3 and L1 would fail on the first day, and a check that always fails gets turned off. So `/qa-init` writes the baseline file (default `qa-baseline.json`) with two sorted lists:
 
@@ -289,7 +295,8 @@ Prints a Markdown table, one row per feature, then a total row:
 - **Automated: browser** = `type: automated` with at least one browser link.
 - **Automated: unit/API** = `type: automated` with no browser link.
 - **P0 cases not automated** lists the IDs of `P0` cases with `type: manual` or `type: api`.
-- A feature whose record is a draft is marked `(draft)`. Below the table: the number of drafts and the size of the baseline.
+- Cases with `status: retired` are not counted.
+- A feature whose record is a draft is marked `(draft)`; a retired record, `(retired)`; a case file with no record, `(no record)`. Below the table: the number of drafts and the size of the baseline.
 
 This command never fails. It is a view.
 

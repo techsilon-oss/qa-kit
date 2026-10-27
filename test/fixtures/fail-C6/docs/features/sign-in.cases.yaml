@@ -1,0 +1,13 @@
+feature: sign-in
+cases:
+  - id: SIGN-01
+    title: The endpoint answers
+    priority: P0
+    type: manual
+    steps:
+      - action: Post the form.
+        expected: 200
+      - expected: The page loads.
+      - action: Read the answer.
+        expected:
+          status: ok

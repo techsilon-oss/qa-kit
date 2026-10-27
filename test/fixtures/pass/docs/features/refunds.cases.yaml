@@ -1,0 +1,18 @@
+feature: refunds
+cases:
+  - id: REF-01
+    title: An operator refunds an order in full
+    priority: P1
+    type: api
+    automated_by: scripts/refund-call.http
+    steps:
+      - action: Call the refund endpoint for a paid order.
+        expected: The order shows as refunded.
+  - id: REF-02
+    title: A refund older than 90 days is refused
+    priority: P0
+    type: automated
+    status: retired
+    steps:
+      - action: Refund an order paid 91 days ago.
+        expected: The refund is refused.

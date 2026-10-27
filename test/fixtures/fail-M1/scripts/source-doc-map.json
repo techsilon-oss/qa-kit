@@ -1,0 +1,7 @@
+{
+  "mappings": [
+    { "source": ["src/sign-in/**"], "docs": ["docs/features/sign-in.md", "docs/features/sign-in.cases.yaml", "docs/features/sign-up.md"] },
+    { "source": ["src/refunds/**"], "docs": ["docs/features/refunds.md", "docs/features/refunds.cases.yaml"] },
+    { "source": ["src/**"], "docs": ["docs/ARCHITECTURE.md"] }
+  ]
+}

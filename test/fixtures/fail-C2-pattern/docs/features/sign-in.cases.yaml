@@ -1,0 +1,37 @@
+feature: sign-in
+cases:
+  - id: SIGN-01
+    title: A visitor signs in and lands on their home page
+    priority: P0
+    roles: [visitor]
+    type: automated
+    automated_by: e2e/smoke/sign-in.spec.ts
+    preconditions:
+      - The account exists and is approved.
+    steps:
+      - action: Open the sign-in page. Enter the email and password. Click **Sign in**.
+        expected: The home page opens.
+    tags: [smoke, happy-path]
+  - id: SIGN-02
+    title: A short password is refused
+    priority: P1
+    type: automated
+    automated_by: src/sign-in/password.test.ts
+    steps:
+      - action: Submit a password of 3 characters.
+        expected: "The form says: at least 8 characters."
+  - id: sign-3
+    title: A locked account cannot sign in
+    priority: P0
+    type: manual
+    steps:
+      - action: Fail to sign in five times.
+        expected: The page says the account is locked.
+  - id: SIGN-04
+    title: The sign-in endpoint refuses a missing password
+    priority: P0
+    type: api
+    automated_by: scripts/manual-sign-in-call.http
+    steps:
+      - action: Post the form with no password.
+        expected: "The response is 400."

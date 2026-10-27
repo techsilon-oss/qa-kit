@@ -10,6 +10,7 @@ All notable changes to QA Kit. The format follows [Keep a Changelog](https://kee
 - Repo skeleton: README, MIT license (Techsilon LLC), Claude Code plugin and marketplace manifests, `package.json` (dev dependency `yaml` 2.9.1).
 - `scripts/check-private-terms.mjs`: blocks private terms in tracked files and commit messages. Whole-word, case-insensitive matching. Runs in `npm test`, in the `pre-commit` and `commit-msg` hooks, and in CI.
 - `npm install` points git at `.githooks/` (the `prepare` script).
+- `qa-check` (vendored template at `skills/qa-init/templates/scripts/qa-check.mjs`): `records` (R1–R5), `cases` (C1–C7), `map` (M1–M3), `coverage`, `all`. A passing fixture repo and a failing fixture for every check ID under `test/fixtures/`.
 - CI workflow: runs on every push and on pull requests from forks; Node 22 and 24; private-terms check from the `PRIVATE_TERMS` secret, then `npm test`.
 - README section "Maintaining the private-terms guard".
 - Plugin manifests checked with `claude plugin validate --strict`. The marketplace entry no longer repeats `version`; `plugin.json` holds it.
@@ -26,3 +27,4 @@ All notable changes to QA Kit. The format follows [Keep a Changelog](https://kee
 - **Coverage:** the column "Automated: unit" is renamed "Automated: unit/API". "P0 cases not automated" also lists P0 cases of type `api`. (§6.4)
 - **R4:** headings are compared after trimming, with straight and curly apostrophes treated as equal. (§5.2)
 - **Node:** the minimum is Node 22 (was 20, which reached end of life in April 2026). (§13)
+- **Clarified while building the checks:** a record that does not parse fails R1; a case file that does not parse fails C7; a missing or invalid code map fails M1. C5 skips retired cases. M2 means "no mapping that names the record matches a tracked file". M3 counts a mapping to a record of any status. Glob rules spelled out (`?` is literal); `mustMap` and `mustMapExceptions` are globs; QA Kit reads only map entries inside `featuresDir`. Coverage skips retired cases and marks retired records and case files with no record. (§6.1–§6.4)
