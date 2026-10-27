@@ -17,7 +17,7 @@ All notable changes to QA Kit. The format follows [Keep a Changelog](https://kee
 - CI workflow: runs on every push and on pull requests from forks; Node 22 and 24; private-terms check from the `PRIVATE_TERMS` secret, then `npm test`.
 - README section "Maintaining the private-terms guard".
 - Plugin manifests checked with `claude plugin validate --strict`. The marketplace entry no longer repeats `version`; `plugin.json` holds it.
-- README section "Status and next steps".
+- govkit guardrails for this repo (`govkit.json`, govkit 0.5.0): `CLAUDE.md`, the trackers `docs/PROJECT-HUB.md` and `docs/PRIORITY-ROADMAP.md`, the release gate, the pre-push hook, doc-sync and docs-sync-check. Branch flow `dev` → `main`. Status moved from the README to the trackers.
 
 ### Fixed
 

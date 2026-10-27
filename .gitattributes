@@ -2,3 +2,13 @@
 # The git hooks in .githooks/ depend on it: with CRLF, "#!/bin/sh\r" names an
 # interpreter that does not exist, and git skips a hook it cannot run.
 * text=auto eol=lf
+
+# Genuinely binary — never touch these.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.woff binary
+*.woff2 binary

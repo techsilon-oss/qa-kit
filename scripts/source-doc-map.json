@@ -1,0 +1,15 @@
+{
+  "_comment": "govkit doc-sync registry for this repo. severity 'gate' fails a PR to main if the mapped doc is not updated in the same PR; 'warn' only comments. Globs: ** = any path, * = any non-slash run.",
+  "mappings": [
+    {
+      "source": ["skills/**", "scripts/check-private-terms.mjs", ".claude-plugin/**"],
+      "docs": ["CHANGELOG.md"],
+      "severity": "gate"
+    },
+    {
+      "source": ["skills/qa-init/templates/scripts/**"],
+      "docs": ["docs/SPEC.md"],
+      "severity": "warn"
+    }
+  ]
+}

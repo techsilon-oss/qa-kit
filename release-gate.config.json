@@ -1,0 +1,7 @@
+{
+  "junitPath": "test-results/junit.xml",
+  "reportPath": "test-results/release-gate-report.md",
+  "checks": [
+    { "label": "Private terms and tests", "ciJob": "test", "cmd": "npm test" }
+  ]
+}
