@@ -1,4 +1,4 @@
-// Core checks: records (R1–R5), cases (C1–C8), map (M1–M3), coverage, all.
+// Core checks: records (R1–R5), cases (C1–C8), map (M1–M3), links (L1–L6), coverage, all.
 //
 // Every fixture is test/fixtures/pass with an overlay copied on top: the files in
 // test/fixtures/<name>/ replace or add to the passing repo. Each failing fixture
@@ -6,7 +6,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cpSync, mkdtempSync, rmSync, unlinkSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -38,7 +38,7 @@ function qaCheck(root, ...args) {
 
 // ── The passing repo ─────────────────────────────────────────────────────────
 
-for (const command of ['records', 'cases', 'map', 'all']) {
+for (const command of ['records', 'cases', 'map', 'links', 'all']) {
   test(`pass: qa-check ${command} passes`, (t) => {
     const r = qaCheck(fixture(t, 'pass'), command);
     assert.equal(r.code, 0, r.output);
@@ -54,6 +54,7 @@ const PASSING = [
   ['pass-M2-draft', 'map', 'a draft record may map from no code'],
   ['pass-M3-exception', 'map', 'a path in mustMapExceptions needs no record'],
   ['pass-M3-test-file', 'map', 'a test file needs no record'],
+  ['pass-L-automation-off', 'all', 'with the automation module off, links are not checked'],
 ];
 
 for (const [name, command, why] of PASSING) {
@@ -89,6 +90,13 @@ const FAILING = [
   ['fail-M2', 'map', 'M2', /search\.md: The record maps from no code\. No mapping names it/],
   ['fail-M2-no-code', 'map', 'M2', /Its mappings match no tracked file/],
   ['fail-M3', 'map', 'M3', /src\/search\/index\.ts: The file matches mustMap but maps to no record/],
+  ['fail-L1', 'links', 'L1', /^e2e\/smoke\/sign-in\.spec\.ts:25: The test "signs out" names no case ID at the start of its title/],
+  ['fail-L2', 'links', 'L2', /The test names SIGN-09, which is in no case file/],
+  ['fail-L3', 'links', 'L3', /proves SIGN-03, but the case has type manual in docs\/features\/sign-in\.cases\.yaml/],
+  ['fail-L3-retired', 'links', 'L3', /proves REF-02, but the case is retired/],
+  ['fail-L4', 'links', 'L4', /proves SIGN-02, but its automated_by in docs\/features\/sign-in\.cases\.yaml does not name e2e\/smoke\/sign-in\.spec\.ts/],
+  ['fail-L5', 'links', 'L5', /SIGN-06: automated_by names e2e\/smoke\/sign-out\.spec\.ts, which does not exist/],
+  ['fail-L6', 'links', 'L6', /SIGN-06: automated_by names e2e\/smoke\/sign-in\.spec\.ts, but no test there starts with SIGN-06/],
 ];
 
 for (const [name, command, id, message] of FAILING) {
@@ -108,22 +116,30 @@ test('fail-C4 and fail-C6 report each bad key and step', (t) => {
   assert.equal(c6.problems.length, 3, c6.output);
 });
 
-test('every check ID R1–R5, C1–C8, M1–M3 has a failing fixture', () => {
+test('every check ID R1–R5, C1–C8, M1–M3, L1–L6 has a failing fixture', () => {
   const covered = new Set(FAILING.map(([, , id]) => id));
-  const ids = [1, 2, 3, 4, 5].map((n) => `R${n}`).concat([1, 2, 3, 4, 5, 6, 7, 8].map((n) => `C${n}`), ['M1', 'M2', 'M3']);
+  const ids = [1, 2, 3, 4, 5].map((n) => `R${n}`).concat([1, 2, 3, 4, 5, 6, 7, 8].map((n) => `C${n}`), ['M1', 'M2', 'M3'], [1, 2, 3, 4, 5, 6].map((n) => `L${n}`));
   for (const id of ids) assert.ok(covered.has(id), `${id} has no failing fixture`);
 });
 
 // ── all ──────────────────────────────────────────────────────────────────────
 
-test('all runs records, cases and map together', (t) => {
+test('all runs records, cases, map and links together', (t) => {
   const root = fixture(t, 'fail-M3');
   cpSync(join(FIXTURES, 'fail-R2'), root, { recursive: true });
-  cpSync(join(FIXTURES, 'fail-C1'), root, { recursive: true });
+  cpSync(join(FIXTURES, 'fail-L1'), root, { recursive: true });
+  writeFileSync(join(root, 'docs/features/sign-in.cases.yaml'), readFileSync(join(root, 'docs/features/sign-in.cases.yaml'), 'utf8').replace('feature: sign-in', 'feature: signin'));
+  git(root, 'add', '-A');
   const r = qaCheck(root, 'all');
   assert.equal(r.code, 1);
-  assert.deepEqual([...new Set(r.problems.map((p) => p.id))].sort(), ['C1', 'M3', 'R2']);
-  assert.match(r.stderr, /qa-check all: 3 problems\./);
+  assert.deepEqual([...new Set(r.problems.map((p) => p.id))].sort(), ['C1', 'L1', 'M3', 'R2']);
+  assert.match(r.stderr, /qa-check all: 4 problems\./);
+});
+
+test('links is skipped when the automation module is off', (t) => {
+  const r = qaCheck(fixture(t, 'pass-L-automation-off'), 'links');
+  assert.equal(r.code, 0, r.output);
+  assert.match(r.stdout, /the automation module is off; nothing to check/);
 });
 
 // ── coverage ─────────────────────────────────────────────────────────────────
@@ -137,8 +153,8 @@ test('coverage prints the table, marks drafts, and skips retired cases', (t) => 
       '| Feature | Cases | Manual | API | Automated: unit/API | Automated: browser | P0 cases not automated |',
       '|---|---:|---:|---:|---:|---:|---|',
       '| refunds (draft) | 1 | 0 | 1 | 0 | 0 | — |',
-      '| sign-in | 4 | 1 | 1 | 1 | 1 | SIGN-03, SIGN-04 |',
-      '| **Total** | 5 | 1 | 2 | 1 | 1 | 2 |',
+      '| sign-in | 5 | 1 | 1 | 1 | 2 | SIGN-03, SIGN-04 |',
+      '| **Total** | 6 | 1 | 2 | 1 | 2 | 2 |',
       '',
       'Draft records: 1. Baseline: 0 paths.',
     ].join('\n'),
@@ -173,4 +189,20 @@ test('without a code map, map says how to create one', (t) => {
   const r = qaCheck(root, 'map');
   assert.equal(r.code, 1);
   assert.match(r.stderr, /M1 {2}scripts\/source-doc-map\.json: The code map does not exist/);
+});
+
+// ── The installed docs/features/README.md ────────────────────────────────────
+
+test('the README template lists the default required sections, in order', () => {
+  const readme = readFileSync(fileURLToPath(new URL('../skills/qa-init/templates/docs/features/README.md', import.meta.url)), 'utf8');
+  const source = readFileSync(QA_CHECK, 'utf8');
+  const block = /requiredSections: \[([\s\S]*?)\]/.exec(source)[1];
+  const sections = [...block.matchAll(/'([^']*)'|"([^"]*)"/g)].map((m) => m[1] ?? m[2]);
+  assert.equal(sections.length, 9);
+  let at = readme.indexOf('Write these sections');
+  for (const s of sections) {
+    const next = readme.indexOf(`. ${s}\n`, at);
+    assert.ok(next > at, `"${s}" is missing or out of order in the README template`);
+    at = next;
+  }
 });

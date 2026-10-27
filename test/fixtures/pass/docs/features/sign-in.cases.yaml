@@ -12,6 +12,14 @@ cases:
       - action: Open the sign-in page. Enter the email and password. Click **Sign in**.
         expected: The home page opens.
     tags: [smoke, happy-path]
+  - id: SIGN-05
+    title: The session survives a reload
+    priority: P1
+    type: automated
+    automated_by: e2e/smoke/sign-in.spec.ts
+    steps:
+      - action: Sign in. Reload the page.
+        expected: The visitor is still signed in.
   - id: SIGN-02
     title: A short password is refused
     priority: P1

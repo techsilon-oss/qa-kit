@@ -1,0 +1,24 @@
+{
+  "qaKitVersion": "0.1.0",
+  "implementation": "vendored",
+  "modules": {
+    "core": {
+      "enabled": true
+    },
+    "automation": {
+      "enabled": false,
+      "runner": "playwright",
+      "specGlob": "e2e/**/*.spec.ts",
+      "unlinkedDirs": [
+        "e2e/visual/"
+      ],
+      "skippedReason": "no browser tests yet"
+    }
+  },
+  "settings": {
+    "mustMap": [
+      "src/**"
+    ],
+    "mustMapExceptions": []
+  }
+}

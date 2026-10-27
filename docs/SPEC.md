@@ -375,10 +375,12 @@ The checker scans files that match `specGlob`. It finds tests by their declarati
 |---|---|
 | L1 | A test in a linked file names no case ID at the start of its title. A **linked file** is every file that matches `specGlob`, is not under `unlinkedDirs`, and is not in the baseline's `unlinkedSpecs` list (§6.3) |
 | L2 | A test names a case ID that does not exist |
-| L3 | A test proves a case whose `type` is not `automated` |
-| L4 | A test proves a case whose `automated_by` does not name the test's file |
+| L3 | A test proves a case whose `type` is not `automated`, or that is retired |
+| L4 | A test proves an automated case whose `automated_by` does not name the test's file |
 | L5 | A case names a spec file that does not exist |
 | L6 | A case names a spec file, and no test there starts with its ID |
+
+**How the checker reads spec files.** It reads the tracked files (`git ls-files`) that match `specGlob`. It skips comments and string literals, so a commented-out test is not a test. A title may be quoted with `'`, `"` or `` ` ``. The case IDs at the start of a title are separated by commas, and the last one is followed by a space, a colon, or the end of the title. L5 and L6 skip retired cases. With the automation module on and no `specGlob`, the checker stops with an error. **Known limit:** the checker does not parse JavaScript. A regular expression literal or a `${…}` expression that contains a quote can hide a test from it.
 
 Files under `unlinkedDirs` (for example visual snapshots, which assert no behaviour) are not linked and not checked. Files in the baseline's `unlinkedSpecs` list are existing tests from before adoption; L1 does not check them, and the list only shrinks (K3). Every new spec file is linked from its first commit.
 

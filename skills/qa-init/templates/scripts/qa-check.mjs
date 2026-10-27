@@ -6,8 +6,9 @@
 //   node scripts/qa-check.mjs records     feature records (R1–R5)
 //   node scripts/qa-check.mjs cases       case files (C1–C8)
 //   node scripts/qa-check.mjs map         the code → record map (M1–M3)
+//   node scripts/qa-check.mjs links       browser tests ↔ cases (L1–L6), when the automation module is on
 //   node scripts/qa-check.mjs coverage    a Markdown coverage table; never fails
-//   node scripts/qa-check.mjs all         records, cases and map
+//   node scripts/qa-check.mjs all         records, cases, map, and links when the automation module is on
 //   node scripts/qa-check.mjs commit-msg <file>
 //                                         commit-time coupling (K1, K2, K4); run it
 //                                         from the commit-msg hook with the hook's $1
@@ -101,7 +102,11 @@ function loadConfig(root) {
     root,
     settings,
     caseIdRe: new RegExp(settings.caseIdPattern),
-    automation: { enabled: automation.enabled === true, specGlob: automation.specGlob ?? null },
+    automation: {
+      enabled: automation.enabled === true,
+      specGlob: automation.specGlob ?? null,
+      unlinkedDirs: toList(automation.unlinkedDirs).filter((d) => typeof d === 'string'),
+    },
   };
 }
 
@@ -475,6 +480,145 @@ function checkMap(cfg, features, report) {
   }
 }
 
+// ── links: L1–L6 ─────────────────────────────────────────────────────────────
+
+const TEST_MODIFIERS = new Set(['only', 'skip', 'fixme', 'fail', 'slow']);
+
+// Read a string literal that starts at src[i] (a quote). Returns { value, end }.
+function readString(src, i) {
+  const q = src[i];
+  let value = '';
+  let j = i + 1;
+  while (j < src.length && src[j] !== q) {
+    if (src[j] === '\\') {
+      value += src[j + 1] ?? '';
+      j += 2;
+    } else {
+      value += src[j];
+      j++;
+    }
+  }
+  return { value, end: j + 1 };
+}
+
+// Find test declarations: test(, test.only(, test.skip(, test.fixme(, test.fail(,
+// test.slow(, followed by a string title. Comments and strings are skipped, so a
+// commented-out test or a "test(" inside a string is not a test. test.describe,
+// hooks, test.step and a conditional test.skip(condition, "reason") are not tests.
+function findTests(src) {
+  const tests = [];
+  let line = 1;
+  let i = 0;
+  const lineAt = (from, to) => {
+    for (let k = from; k < to; k++) if (src[k] === '\n') line++;
+  };
+  while (i < src.length) {
+    const c = src[i];
+    const next = src[i + 1];
+    if (c === '/' && next === '/') {
+      const end = src.indexOf('\n', i);
+      i = end === -1 ? src.length : end;
+    } else if (c === '/' && next === '*') {
+      const end = src.indexOf('*/', i + 2);
+      const stop = end === -1 ? src.length : end + 2;
+      lineAt(i, stop);
+      i = stop;
+    } else if (c === '"' || c === "'" || c === '`') {
+      const { end } = readString(src, i);
+      lineAt(i, end);
+      i = end;
+    } else if (c === '\n') {
+      line++;
+      i++;
+    } else if (/[A-Za-z_$]/.test(c) && !/[\w$.]/.test(src[i - 1] ?? '')) {
+      const m = /^test(?:\.([A-Za-z]+))?\s*\(\s*(["'`])/.exec(src.slice(i, i + 40));
+      if (m && (m[1] === undefined || TEST_MODIFIERS.has(m[1]))) {
+        const quoteAt = i + m[0].length - 1;
+        lineAt(i, quoteAt);
+        const { value, end } = readString(src, quoteAt);
+        tests.push({ title: value, line });
+        lineAt(quoteAt, end);
+        i = end;
+      } else {
+        const word = /^[\w$]+/.exec(src.slice(i))[0];
+        i += word.length;
+      }
+    } else {
+      i++;
+    }
+  }
+  return tests;
+}
+
+// The case IDs at the start of a title: "SIGN-01 …" or "SIGN-01, SIGN-02 …".
+function titleIds(cfg, title) {
+  const inner = cfg.settings.caseIdPattern.replace(/^\^/, '').replace(/\$$/, '');
+  const re = new RegExp(`^\\s*((?:${inner})(?:\\s*,\\s*(?:${inner}))*)(?=[\\s:]|$)`);
+  const m = re.exec(title);
+  return m ? m[1].split(',').map((s) => s.trim()) : [];
+}
+
+function normalizePath(p) {
+  return p.replace(/\\/g, '/').replace(/^\.\//, '');
+}
+
+function checkLinks(cfg, features, report) {
+  const { root } = cfg;
+  const { specGlob, unlinkedDirs } = cfg.automation;
+  if (!specGlob) {
+    throw new UsageError(`The automation module is on but has no specGlob. Set modules.automation.specGlob in ${MANIFEST}, for example "e2e/**/*.spec.ts".`);
+  }
+  const dirs = unlinkedDirs.map((d) => normalizePath(d).replace(/\/?$/, '/'));
+  const specs = trackedFiles(root).filter((f) => matchesAny(f, [specGlob]));
+  const linked = specs.filter((f) => !dirs.some((d) => f.startsWith(d)));
+
+  const cases = new Map(); // id → { c, file }
+  for (const f of features.caseFiles) {
+    for (const c of casesOf(f)) {
+      if (isPlainObject(c) && typeof c.id === 'string' && !cases.has(c.id)) cases.set(c.id, { c, file: f.rel });
+    }
+  }
+
+  const testsByFile = new Map();
+  for (const f of specs) testsByFile.set(f, findTests(readText(join(root, f))));
+
+  // L1–L4: every test in a linked file proves cases that exist and name its file.
+  for (const f of linked) {
+    for (const t of testsByFile.get(f)) {
+      const where = `${f}:${t.line}`;
+      const ids = titleIds(cfg, t.title);
+      if (ids.length === 0) {
+        report.add('L1', where, `The test "${t.title}" names no case ID at the start of its title. Start the title with the ID of the case it proves, for example "SIGN-01 …". If it proves no case, add the case first.`);
+        continue;
+      }
+      for (const id of ids) {
+        const hit = cases.get(id);
+        if (!hit) {
+          report.add('L2', where, `The test names ${id}, which is in no case file. Fix the ID, or add the case first.`);
+        } else if (hit.c.type !== 'automated' || hit.c.status === 'retired') {
+          const what = hit.c.status === 'retired' ? 'is retired' : `has type ${hit.c.type ?? '(none)'}`;
+          report.add('L3', where, `The test proves ${id}, but the case ${what} in ${hit.file}. Set type: automated on an active case, or remove ${id} from the title.`);
+        } else if (!splitLinks(hit.c.automated_by).map(normalizePath).includes(f)) {
+          report.add('L4', where, `The test proves ${id}, but its automated_by in ${hit.file} does not name ${f}. Add ${f} to automated_by.`);
+        }
+      }
+    }
+  }
+
+  // L5–L6: every spec file a case names exists, and has a test that starts with its ID.
+  for (const [id, { c, file }] of cases) {
+    if (c.status === 'retired') continue;
+    for (const link of splitLinks(c.automated_by).map(normalizePath).filter((p) => isBrowserSpec(cfg, p))) {
+      const where = `${file} ${id}`;
+      if (!existsSync(join(root, link))) {
+        report.add('L5', where, `automated_by names ${link}, which does not exist. Create the spec, or fix the path.`);
+      } else if (!(testsByFile.get(link) ?? findTests(readText(join(root, link)))).some((t) => titleIds(cfg, t.title).includes(id))) {
+        report.add('L6', where, `automated_by names ${link}, but no test there starts with ${id}. Start the title of the test that proves it with "${id} …".`);
+      }
+    }
+  }
+}
+
 // ── coverage ─────────────────────────────────────────────────────────────────
 
 function baselineSize(cfg) {
@@ -767,6 +911,7 @@ const CHECKS = {
   records: checkRecords,
   cases: checkCases,
   map: checkMap,
+  links: checkLinks,
 };
 
 function runChecks(cfg, names) {
@@ -801,7 +946,7 @@ function parseArgs(argv) {
   return opts;
 }
 
-const USAGE = 'Usage: node scripts/qa-check.mjs <records|cases|map|coverage|all|commit-msg <file>> [--root <dir>]';
+const USAGE = 'Usage: node scripts/qa-check.mjs <records|cases|map|links|coverage|all|commit-msg <file>> [--root <dir>]';
 
 function main(argv) {
   const opts = parseArgs(argv);
@@ -812,8 +957,14 @@ function main(argv) {
     case 'cases':
     case 'map':
       return printReport(opts.command, runChecks(cfg, [opts.command]));
+    case 'links':
+      if (!cfg.automation.enabled) {
+        console.log('qa-check links: the automation module is off; nothing to check');
+        return 0;
+      }
+      return printReport('links', runChecks(cfg, ['links']));
     case 'all':
-      return printReport('all', runChecks(cfg, ['records', 'cases', 'map']));
+      return printReport('all', runChecks(cfg, ['records', 'cases', 'map', ...(cfg.automation.enabled ? ['links'] : [])]));
     case 'coverage':
       console.log(coverage(cfg, loadFeatures(cfg)));
       return 0;
