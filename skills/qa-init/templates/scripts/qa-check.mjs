@@ -92,7 +92,7 @@ function loadConfig(root) {
   }
   let manifest;
   try {
-    manifest = JSON.parse(readFileSync(path, 'utf8'));
+    manifest = JSON.parse(readText(path));
   } catch (err) {
     throw new UsageError(`${MANIFEST} is not valid JSON: ${err.message}. Fix the syntax.`);
   }
@@ -149,7 +149,7 @@ function toList(v) {
 }
 
 function readText(path) {
-  return readFileSync(path, 'utf8').replace(/^﻿/, '');
+  return readFileSync(path, 'utf8').replace(BYTE_ORDER_MARK, '');
 }
 
 function isBlank(v) {
@@ -162,8 +162,12 @@ function isValidDate(v) {
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v;
 }
 
+// Written with char codes so the source stays ASCII and nothing is invisible.
+const BYTE_ORDER_MARK = new RegExp(`^${String.fromCharCode(0xfeff)}`);
+const CURLY_APOSTROPHES = new RegExp(`[${String.fromCharCode(0x2018, 0x2019)}]`, 'g');
+
 function normalizeHeading(text) {
-  return text.replace(/\s+#+\s*$/, '').replace(/[‘’]/g, "'").trim();
+  return text.replace(/\s+#+\s*$/, '').replace(CURLY_APOSTROPHES, "'").trim();
 }
 
 function trackedFiles(root) {

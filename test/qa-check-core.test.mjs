@@ -161,6 +161,17 @@ test('coverage prints the table, marks drafts, and skips retired cases', (t) => 
   );
 });
 
+// Some Windows editors save UTF-8 with a byte order mark. JSON.parse rejects it.
+test('files saved with a byte order mark still pass', (t) => {
+  const root = fixture(t, 'pass');
+  const bom = String.fromCharCode(0xfeff);
+  for (const rel of ['qa-kit.json', 'scripts/source-doc-map.json', 'docs/features/sign-in.md', 'docs/features/sign-in.cases.yaml']) {
+    writeFileSync(join(root, rel), bom + readFileSync(join(root, rel), 'utf8'));
+  }
+  const r = qaCheck(root, 'all');
+  assert.equal(r.code, 0, r.output);
+});
+
 test('coverage never fails, even on a broken case file', (t) => {
   const r = qaCheck(fixture(t, 'fail-C7-yaml'), 'coverage');
   assert.equal(r.code, 0, r.output);
