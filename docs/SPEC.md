@@ -407,6 +407,10 @@ Tag names are settings. **New tests start in nightly.** A test moves to smoke on
 | `e2e/support/cleanup.ts` | `Cleanup`: steps run after the test, newest first, every step even if one fails; reports what was left behind. **Adapter:** the delete function and the allowed environment |
 | `e2e/smoke/example.spec.ts` | One linked example test |
 
+**The example feature.** A linked test must name a case that exists (L1, L2), so the example test comes with its feature. `/qa-init` asks whether to install the example feature (default yes): a draft record `docs/features/example.md`, its case file, and `e2e/smoke/example.spec.ts`, linked to each other. A draft needs no code (M2), so the example adds no code-map entry. Together they show the whole chain, and `qa-check all` passes on them. The doctor reports "example feature still present" as a finding until they are removed (§10.1).
+
+**Type-checked templates.** The kit's own repo has `@playwright/test` and `typescript` as dev dependencies, and its CI type-checks every TypeScript template against the installed Playwright version.
+
 Scripts merged into `package.json` (existing keys kept): `test:e2e`, `test:e2e:smoke` (`--grep @smoke`), `test:e2e:nightly` (`--grep-invert @extended`), `qa:check`, `qa:coverage`, `qa:doctor`.
 
 **Rules for reliable browser tests** (in the installed README):
@@ -425,7 +429,7 @@ Every skill is a thin wrapper over the scripts. The work must also run in a plai
 
 | Skill | Does |
 |---|---|
-| `/qa-init` | Installs the kit into the current repo. Non-destructive: creates missing files, merges `package.json` scripts, never overwrites. Idempotent. Asks which modules to enable; a skipped module needs a reason. Prints a created / merged / skipped summary. Never commits, installs packages or deploys |
+| `/qa-init` | Installs the kit into the current repo. Non-destructive: creates missing files, merges `package.json` scripts, never overwrites. Idempotent. Asks which modules to enable; a skipped module needs a reason. With the automation module on, asks whether to install the example feature (§8.4, default yes). Prints a created / merged / skipped summary. Never commits, installs packages or deploys |
 | `/qa-discover` | Maps an existing repo's features. Reads the code (routes, pages, API handlers, jobs, database objects), proposes a feature list, and **waits for approval**. Then drafts, for each approved feature: a record (`status: draft`), a case file with case outlines, and its code-map entries. Removes the newly mapped paths from the baseline's `unmapped` list. Never sets `last_verified`. Never marks a case `automated`. Ends with a list of drafts, in a suggested order for verification (highest risk first) |
 | `/qa-doctor` | Runs `qa-doctor.mjs` and explains each finding |
 | `/qa-record <feature>` | Writes, updates or **verifies** a feature record and its case file against the code. Reads the code first; marks anything it cannot trace to code as **Assumed**, with who can confirm it. Sets `status: active` and `last_verified` only after checking every claim. The draft count falls by one |
@@ -455,6 +459,7 @@ A new repo skips step 2: it writes records as features are built.
 - For each companion: PLANNED (with its issue link) or OK when its own manifest is present.
 - Reports QA Kit files found on disk but not declared ("installed but not in the manifest").
 - Reports adoption progress as **findings, not failures**: the number of draft records, and the number of paths left in the baseline.
+- Reports "example feature still present" as a finding while any file of the example feature (§8.4) exists.
 - `--ci`: exit `1` if anything is MISSING. PLANNED never fails the run.
 - `config`: prints the manifest as a readable table.
 - Dependency-free: Node built-ins only.

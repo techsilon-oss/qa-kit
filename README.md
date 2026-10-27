@@ -1,5 +1,7 @@
 # QA Kit
 
+> **Pre-release. Not ready to install.**
+
 QA Kit gives a repository one source of truth for **what the product does** and **how each behaviour is proven**. It keeps that truth in step with the code.
 
 The chain it protects:
@@ -12,7 +14,7 @@ Each link is checked by a script. No link depends on a person or an agent rememb
 
 QA Kit is a Claude Code plugin. Its skills wrap plain Node scripts, so every check also runs in a terminal, in a git hook and in CI.
 
-> **Status: pre-release.** v0.1.0 is not tagged yet. The specification is [docs/SPEC.md](docs/SPEC.md); it is the only source of truth for formats, check IDs and behaviour. [CHANGELOG.md](CHANGELOG.md) lists what is built.
+The specification is [docs/SPEC.md](docs/SPEC.md); it is the only source of truth for formats, check IDs and behaviour. [CHANGELOG.md](CHANGELOG.md) lists what is built. See [Status and next steps](#status-and-next-steps).
 
 ## What it gives a repo
 
@@ -55,6 +57,29 @@ Requirements: git and Node 22 or later. The checks need one package, `yaml`, as 
 ## The limit
 
 The link checks give zero *link* drift: every browser test names a case, and every automated case names a test that exists. They cannot prove that a passing test checks the right thing. The commit-time check on linked cases and code review cover that.
+
+## Status and next steps
+
+v0.1 is built in phases on the branch `feat/v0.1-core`, with a draft pull request to `main`. Nothing is on `main` yet, and nothing is tagged. [CHANGELOG.md](CHANGELOG.md) lists what is built; run `npm test` for the current results.
+
+**Done:**
+
+- Phase 0: the spec, this repo's skeleton, the private-terms guard and CI.
+- Phase 1: `qa-check records`, `cases`, `map`, `coverage` and `all`.
+- Phase 2: `qa-check commit-msg`, the commit-time coupling.
+- Phase 3a: `qa-check links` and the installed `docs/features/README.md`.
+
+**Next, in order:**
+
+| Phase | What | Starts when |
+|---|---|---|
+| 3b | The Playwright starter, the example feature, and type-checking of the templates | **Gated.** The sign-in and cleanup pattern has passed signed-in runs in a real repo. The starter must not ship a pattern that has never signed in for real |
+| 4 | The manifest, `qa-doctor`, `/qa-init`, the baseline (M4, K3), `qa-check commit-range` and the CI workflow template | Phase 3b is done. After Phase 4 the kit is usable, and the pull request merges to `main` |
+| 5 | The authoring skills: `/qa-discover`, `/qa-record`, `/qa-plan` | Phase 4 is done |
+| 6 | An end-to-end run of the adoption path on a sample app, recorded in `docs/VERIFICATION.md` | Phase 5 is done |
+| 7 | Release preparation: the issues for the companion kits and for v0.2, then the v0.1.0 tag | Phase 6 is done, and the owner approves each step |
+
+After v0.1.0, two separate tasks change `techsilon-oss/govkit` and `techsilon-oss/release-gate-kit`: the `/sdlc` extension point (spec §10.3) and the move to the MIT license.
 
 ## Developing QA Kit
 

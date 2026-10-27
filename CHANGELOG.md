@@ -17,6 +17,11 @@ All notable changes to QA Kit. The format follows [Keep a Changelog](https://kee
 - CI workflow: runs on every push and on pull requests from forks; Node 22 and 24; private-terms check from the `PRIVATE_TERMS` secret, then `npm test`.
 - README section "Maintaining the private-terms guard".
 - Plugin manifests checked with `claude plugin validate --strict`. The marketplace entry no longer repeats `version`; `plugin.json` holds it.
+- README section "Status and next steps".
+
+### Fixed
+
+- `qa-check` reads `qa-kit.json` and the code map correctly when an editor saved them with a byte order mark. (Some Windows editors do; `JSON.parse` rejects it.)
 
 ### Spec changes (from the first draft of v0.1)
 
@@ -38,3 +43,5 @@ All notable changes to QA Kit. The format follows [Keep a Changelog](https://kee
 - **Clarified while building commit-time coupling:** trailer syntax (the dash may be —, – or -; comment lines and a scissors line are not part of the message); records and case files are not code for K1; K1 reads the staged code map and only feature docs inside `featuresDir`; when K2 counts a case as linked, what triggers it, and that every linked spec must be staged; K4 blocks on a staged case file that does not parse; known limit with `git commit --amend`. (§7)
 - **CI mode for commit coupling (planned for Phase 4):** `qa-check commit-range <base> <head>` runs K1, K2 and K4 over the combined change of a range, so commits that skipped the hook (web editor, no hooks installed, `--no-verify`) are still checked. A trailer in any commit message in the range counts; merge commits are skipped. The CI workflow template runs it on every push and pull request. Conformance now includes it. (§7.1, §11)
 - **Clarified while building the link checks:** L3 also fails for a retired case; L4 applies to automated cases (L3 covers the rest); L5 and L6 skip retired cases; how the checker reads spec files (tracked files, comments and strings skipped, title quoting, the ID separators), with its known limit. (§8.2)
+- **The example feature (planned for Phase 3b and 4):** `/qa-init` asks whether to install an example draft record, its case file and a linked spec (default yes), so `qa-check all` passes on a fresh install and the whole chain is shown. The doctor reports "example feature still present" as a finding until it is removed. (§8.4, §9, §10.1)
+- **Type-checked templates (planned for Phase 3b):** this repo adds `@playwright/test` and `typescript` as dev dependencies, and CI type-checks every TypeScript template. (§8.4)
